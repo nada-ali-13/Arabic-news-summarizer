@@ -1,0 +1,26 @@
+{
+  "verification_source": "user_reported_google_colab_execution",
+  "reported_date": "2026-11-06",
+  "source_commit": "52525c54f683a244f1df71a6403c7e3984d5ac49",
+  "hardware": "Google Colab NVIDIA T4",
+  "training_schema_version": 2,
+  "precision": {
+    "requested": "no",
+    "effective": "no",
+    "accelerator": "no",
+    "native_amp": false,
+    "grad_scaler_enabled": false
+  },
+  "status": "smoke_completed",
+  "reported_smoke_metrics": {
+    "eval_loss": 12.97121810913086,
+    "eval_rougeLsum": 0.0
+  },
+  "interpretation": "Two-step pipeline smoke; these are not final summarization quality results.",
+  "not_established": [
+    "Completion or quality of the full training plan",
+    "1024-token full-mode memory/performance on T4",
+    "Checkpoint recovery after a real Colab runtime termination",
+    "FP16 numerical stability"
+  ]
+}

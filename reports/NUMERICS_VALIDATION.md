@@ -35,10 +35,25 @@ The correction explicitly sets/verifies the effective precision; development and
 
 Benign Trainer warnings about unreliable filesystem mtimes falling back to numerical checkpoint ordering remain in the tiny tests.
 
-## Not verified
+## User-verified real Colab T4 smoke
 
-**Corrected AraT5v2/XL-Sum smoke on a real Colab T4 is pending.** No GPU is attached to this execution environment. Direct Hugging Face downloads are also blocked by its network policy, so no additional full pretrained weights were downloaded. The user's observed active precision is real Colab evidence of the defect, not a verified post-fix training result.
+The user subsequently reported successful execution of commit `52525c54f683a244f1df71a6403c7e3984d5ac49` on a real Google Colab NVIDIA T4:
+
+| Field | Reported result |
+|---|---|
+| Training schema | 2 |
+| Requested / effective / Accelerator precision | no / no / no |
+| native_amp / scaler | False / False |
+| Final status | smoke_completed |
+| Smoke evaluation loss | 12.97121810913086 |
+| Smoke ROUGE-Lsum | 0.0 |
+
+[Machine-readable user-reported evidence](T4_SMOKE_RESULT.json). This is a two-step pipeline smoke pass, not a final model quality score. Zero smoke ROUGE-Lsum is uninformative for final quality and is not used to select a real candidate. The assistant did not execute this GPU run; the execution and values were supplied by the user. Follow-up finalization changes only documentation and notebook Markdown, leaving the tested training code/configuration unchanged.
+
+## Still not verified
+
+Completion/quality of the full training plan, full-mode 1,024-token memory/performance, recovery after an actual Colab runtime termination, and FP16 stability remain unverified. Full-state recovery is covered by real local CPU Trainer tests. No GPU is attached to the assistant execution environment; no additional full pretrained weights were downloaded.
 
 Local tests use PyTorch 2.8.0+cpu; the user's CUDA runtime is 2.11.0+cu130. The requirements preserve a supported installed Colab CUDA PyTorch (>=2.6,<3) rather than forcing a CPU wheel or changing its CUDA build. The updated notebook records the actual installed versions and verified precision.
 
-Use [the explicit fresh-runtime/new-directory restart procedure](COLAB_RESTART.md). Preserve all v1/failed runs and their source pins. If a true FP32 attempt still fails, the new failure report names the exact stage and value; retain that report rather than treating this change as proof of T4 success.
+Use [the full training and recovery guide](FULL_TRAINING.md) to start a separate full-mode run. Preserve the successful smoke run, all v1/failed runs and their source pins. If a later numerical failure occurs, retain its exact diagnostic; this smoke pass does not guarantee every longer full-mode batch will fit or remain stable.

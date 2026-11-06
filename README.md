@@ -4,11 +4,11 @@ Arabic news/article **abstractive summarization** using supervised transfer lear
 
 [Open the training notebook in Colab](https://colab.research.google.com/github/nada-ali-13/Arabic-news-summarizer/blob/main/notebooks/Arabic_News_Summarizer_Training.ipynb)
 
-**Current evidence:** CPU tests include actual optimization, interruption, full Trainer resume, export, independent loading, and inference using an offline tiny random T5. AraT5v2 training on a T4, real XL-Sum ROUGE, trained-model CPU latency and deployment are **pending**. Test-model scores are not project-quality results. See [validation](reports/VALIDATION.md) and [compatibility/licensing](reports/COMPATIBILITY.md).
+**Current evidence:** CPU tests include actual optimization, interruption, full Trainer resume, export, independent loading, and inference using an offline tiny random T5. The user verified a real Colab T4 FP32 two-step smoke at commit `52525c5` ([recorded evidence](reports/T4_SMOKE_RESULT.json)). Completion of the full training plan, final XL-Sum quality metrics, trained-model CPU latency and deployment remain **pending**. Test-model scores are not project-quality results. See [validation](reports/VALIDATION.md) and [compatibility/licensing](reports/COMPATIBILITY.md).
 
 ## Run in Colab
 
-For the reported nonfinite smoke failure, use the [safe correction/restart procedure](reports/COLAB_RESTART.md). It explains the verified inherited-AMP precision bug and preserves all old Drive runs. Real T4 success of the correction is still pending.
+For the reported nonfinite smoke failure, use the [safe correction/restart procedure](reports/COLAB_RESTART.md). It explains the verified inherited-AMP precision bug and preserves all old Drive runs. The corrected two-step FP32 smoke passed on the user's real T4. Use the [full training/recovery guide](reports/FULL_TRAINING.md) for the next stage; preserve development and failed-run directories.
 
 1. Open the notebook above. Choose **Runtime → Change runtime type → T4 GPU**.
 2. Choose **Run all**, then authorize the normal Google Drive mount. No Hugging Face account, login or token is needed for these public resources.
