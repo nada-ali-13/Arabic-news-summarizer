@@ -1,24 +1,25 @@
 # Arabic News Summarizer | ملخّص الأخبار العربية
 
-Arabic news/article **abstractive summarization** using supervised transfer learning from `UBC-NLP/AraT5v2-base-1024` on the **Arabic subset of `csebuetnlp/xlsum`**. The primary deliverable is a complete Colab notebook with persistent full-state recovery, supported by reusable Python modules and an Arabic Gradio application.
+Arabic abstractive news summarization with `UBC-NLP/AraT5v2-base-1024` and the Arabic split of `csebuetnlp/xlsum`. The recommended training entry point is now **one FP32 Colab T4 experiment**, followed by a final inference-only export and the existing Arabic Gradio app.
 
-[Open the training notebook in Colab](https://colab.research.google.com/github/nada-ali-13/Arabic-news-summarizer/blob/main/notebooks/Arabic_News_Summarizer_Training.ipynb)
+[Open the single-run FP32 notebook in Colab](https://colab.research.google.com/github/nada-ali-13/Arabic-news-summarizer/blob/codex/simple-colab-fp32/notebooks/Arabic_News_Single_Run_FP32.ipynb)
 
-**Current evidence:** CPU tests include actual optimization, interruption, full Trainer resume, export, independent loading, and inference using an offline tiny random T5. The user verified a real Colab T4 FP32 two-step smoke at commit `52525c5` ([recorded evidence](reports/T4_SMOKE_RESULT.json)). Completion of the full training plan, final XL-Sum quality metrics, trained-model CPU latency and deployment remain **pending**. Test-model scores are not project-quality results. See [validation](reports/VALIDATION.md) and [compatibility/licensing](reports/COMPATIBILITY.md).
+## Run the single experiment in Colab
 
-## Run in Colab
+1. Start a fresh runtime (**Disconnect and delete runtime**, then select **T4 GPU**). Run the new notebook from top to bottom; it installs pinned dependencies while preserving Colab's CUDA PyTorch.
+2. Cell 1 contains the settings: `MAX_STEPS=200`, learning rate fixed at `5e-5`, batch 1, accumulation 8, source/target limits 1024/128, FP32, and a 90-minute training budget. This is one full-parameter experiment. Its first three optimizer steps print an approximate duration estimate; the budget stops normally at a step boundary and proceeds to export. More steps do not guarantee quality.
+3. Cells 2–6 verify GPU/precision, load the official Arabic-only archive, preserve and clean official splits, prepare teacher-forced labels with `-100` padding, and mount Drive. Enter available storage from the Drive storage page when prompted. The check covers the final FP32 export (roughly 1.5 GB weights plus a margin), using the actual parameter size. No quota API or Drive deletion is used.
+4. **Cell 7 trains and immediately saves the final model/tokenizer to a new folder**: `MyDrive/ArabicNewsSummarizer/single-fp32-<timestamp>-<id>/model/`. Wait for `FINAL EXPORT COMPLETE`. No generation evaluation occurs before export. If upload fails while the runtime survives, rerunning this cell skips the completed training and retries export.
+5. Cells 8–10 independently reload the saved folder, compute Arabic-aware ROUGE-1/2/L/Lsum on a seeded 64-row held-out test subset, show three articles/references/predictions, and test editable custom Arabic text. Evaluation JSON stays local under `/content`; download it if needed.
+6. Cell 11 optionally launches the existing Arabic Gradio app. Set `LAUNCH_GRADIO=True` to create its temporary public link. Later, copy the complete export folder and set `ARABIC_SUMMARIZER_MODEL` to that folder before running `python app.py` (see the notebook for Colab and local instructions).
 
-For the reported nonfinite smoke failure, use the [safe correction/restart procedure](reports/COLAB_RESTART.md). It explains the verified inherited-AMP precision bug and preserves all old Drive runs. The corrected two-step FP32 smoke passed on the user's real T4. Use the [full training/recovery guide](reports/FULL_TRAINING.md) for the next stage; preserve development and failed-run directories.
+**Storage policy:** `save_strategy="no"`, no periodic full-state checkpoints and no resume. All training output, Hugging Face caches and intermediate data stay on `/content`. Drive receives only final safetensors weights, tokenizer, model/generation configs and small inference metadata; no optimizer, scheduler, RNG or Trainer state. The old `full-v2-fp32-final-01` directory and all other old runs/Trash are untouched. A disconnect before export finishes loses the run; start again in a fresh runtime. Leave time for the final upload before Colab ends.
 
-1. Open the notebook above. Choose **Runtime → Change runtime type → T4 GPU**.
-2. Choose **Run all**, then authorize the normal Google Drive mount. No Hugging Face account, login or token is needed for these public resources.
-3. Keep the default `MODE="full"` for final training. For a short development run, change the notebook mode to `dev` before its first run. No code edits are needed between experiments.
-4. Keep Drive space available: the default project budget is 40 GB, including a 7 GB reserve for a full checkpoint. Actual Drive availability is checked. Training may pause before using the reserve.
-5. If disconnected, reopen the same notebook and run all with the same mode/path. Completed experiments are skipped and an interrupted experiment resumes automatically.
-6. Inspect `final_report.json`, `best_test.json` and `baseline_test.json` on Drive. Review the qualitative examples before claiming quality.
-7. Run the optional last application cell to create a temporary public Gradio presentation link. This link expires and is not a deployment.
+**Validation:** The new notebook passed notebook schema validation, compilation of every code cell, and lightweight offline checks of timing/budget behavior, export ordering, and the reused Arabic normalization/split logic. No full model training or gigabyte downloads were run in Codex. Dependency installation in Colab, real T4 memory/timing/training, Drive export and reload, real ROUGE quality, and live Gradio remain unverified until the notebook runs there. The earlier [T4 FP32 smoke evidence](reports/T4_SMOKE_RESULT.json) concerns the previous pipeline, not execution of this new notebook.
 
-Critical files live in `MyDrive/ArabicNewsSummarizer/full-v2-numerics/` (or `dev-v2-numerics/`). Colab code/package installation is ephemeral and can be recreated. The source commit and upstream model/dataset commit SHAs are locked on first execution. Installed package versions are recorded.
+## Legacy workflow reference
+
+The remaining training/recovery sections below, the older `Arabic_News_Summarizer_Training.ipynb`, and the old configuration/report files document the previous workflow. They are retained for reference. **Use the new single-run notebook above for this task**; it does not call the old training/checkpoint pipeline, run its smoke/baseline/comparison experiments, or reuse its Drive runs. Shared Arabic preprocessing, ROUGE, numerical guards, inference and Gradio helpers are loaded from the fixed `main` base commit `d1b24cbeef87aa61e45693fd5f7895a9f8db6f05`.
 
 ## Architecture
 
