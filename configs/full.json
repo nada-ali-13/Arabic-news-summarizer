@@ -1,6 +1,7 @@
 {
   "source_length": 1024,
   "target_length": 128,
+  "mixed_precision": "no",
   "validation_samples": 256,
   "test_samples": 512,
   "max_hours": 7,

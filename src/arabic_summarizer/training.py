@@ -2,6 +2,7 @@
 
 import gc
 import json
+import os
 import shutil
 import time
 import uuid
@@ -12,6 +13,7 @@ from .checkpoints import directory_bytes, latest_checkpoint, seal, valid
 from .data import fixed_subset, load_official, tokenize
 from .io import atomic_json, read_json
 from .metrics import trainer_metrics
+from .numerics import ValidatedSeq2SeqCollator, check_logs, checked_trainer_class
 
 
 def resolve_revisions(config, root):
@@ -71,11 +73,15 @@ def build_trainer(
     config, experiment, output, model, tokenizer, train, validation, callbacks=(), references=None
 ):
     import torch
-    from transformers import DataCollatorForSeq2Seq, Seq2SeqTrainer, Seq2SeqTrainingArguments
+    from transformers import Seq2SeqTrainingArguments
 
     gpu = torch.cuda.is_available()
-    bf16 = gpu and config.mixed_precision == "bf16" and torch.cuda.is_bf16_supported()
-    # FP16 is the T4 default; users can select no precision if their run overflows.
+    if gpu and config.mixed_precision == "bf16" and not torch.cuda.is_bf16_supported():
+        raise ValueError("BF16 requested but unsupported by this GPU; T4 requires no or fp16")
+    effective_precision = config.mixed_precision if gpu else "no"
+    # Transformers 4.57.1 preserves this variable when both precision flags are
+    # false. A prior FP16 attempt otherwise silently makes an FP32 retry use AMP.
+    os.environ["ACCELERATE_MIXED_PRECISION"] = effective_precision
     args = Seq2SeqTrainingArguments(
         output_dir=str(output),
         max_steps=experiment.max_steps,
@@ -88,8 +94,8 @@ def build_trainer(
         lr_scheduler_type="linear",
         max_grad_norm=1.0,
         optim="adamw_torch",
-        fp16=gpu and config.mixed_precision == "fp16",
-        bf16=bf16,
+        fp16=effective_precision == "fp16",
+        bf16=effective_precision == "bf16",
         gradient_checkpointing=True,
         gradient_checkpointing_kwargs={"use_reentrant": False},
         eval_strategy="steps",
@@ -115,18 +121,56 @@ def build_trainer(
         report_to="none",
         save_safetensors=True,
     )
-    return Seq2SeqTrainer(
+    trainer = checked_trainer_class()(
         model=model,
         args=args,
         processing_class=tokenizer,
         train_dataset=train,
         eval_dataset=validation,
-        data_collator=DataCollatorForSeq2Seq(
+        data_collator=ValidatedSeq2SeqCollator(
             tokenizer, model=model, pad_to_multiple_of=8 if gpu else None
         ),
         compute_metrics=trainer_metrics(tokenizer, references),
         callbacks=list(callbacks),
     )
+    actual_precision = trainer.accelerator.mixed_precision
+    if actual_precision != effective_precision:
+        raise RuntimeError(
+            f"Precision mismatch: requested={effective_precision}, actual={actual_precision}. "
+            "Restart the Colab runtime; a new Drive directory alone does not reset runtime state."
+        )
+    precision = {
+        "requested": config.mixed_precision,
+        "effective": effective_precision,
+        "accelerator": actual_precision,
+        "fp16": args.fp16,
+        "bf16": args.bf16,
+        "native_amp": trainer.accelerator.native_amp,
+        "grad_scaler_enabled": trainer.accelerator.scaler is not None,
+        "model_parameter_dtypes": sorted({str(p.dtype) for p in model.parameters()}),
+        "model_config": {
+            name: getattr(model.config, name, None)
+            for name in (
+                "model_type",
+                "vocab_size",
+                "feed_forward_proj",
+                "tie_word_embeddings",
+                "pad_token_id",
+                "eos_token_id",
+                "decoder_start_token_id",
+                "use_cache",
+            )
+        },
+        "tokenizer_pad_token_id": tokenizer.pad_token_id,
+        "tokenizer_eos_token_id": tokenizer.eos_token_id,
+    }
+    atomic_json(Path(output) / "precision.json", precision)
+    print(
+        f"Precision verified: requested={config.mixed_precision}, "
+        f"effective={effective_precision}, accelerator={actual_precision}, "
+        f"native_amp={precision['native_amp']}, scaler={precision['grad_scaler_enabled']}"
+    )
+    return trainer
 
 
 def budget_callback(config, root, fingerprint, ledger, session_start):
@@ -168,17 +212,7 @@ def budget_callback(config, root, fingerprint, ledger, session_start):
             self.tick()
 
         def on_log(self, args, state, control, logs=None, **kwargs):
-            import math
-
-            if any(
-                not math.isfinite(value)
-                for value in (logs or {}).values()
-                if isinstance(value, (int, float))
-            ):
-                raise RuntimeError(
-                    "Nonfinite loss/metrics. Inspect precision and data; "
-                    "do not report this experiment as successful."
-                )
+            check_logs(args.output_dir, state, logs)
 
     return PersistentBudget()
 
@@ -207,7 +241,7 @@ def predict_report(trainer, tokenized, rows, path):
     return report
 
 
-def run(config, root, allow_cpu=False):
+def run(config, root, allow_cpu=False, smoke_only=False):
     """Run again with the same config/root to recover, without editing experiments."""
     import torch
     from transformers import AutoTokenizer, EarlyStoppingCallback, set_seed
@@ -267,6 +301,12 @@ def run(config, root, allow_cpu=False):
         return result
 
     for experiment in config.experiments:
+        if smoke_only and not experiment.smoke:
+            return {
+                "status": "smoke_completed",
+                "run_dir": str(root),
+                "note": "No baseline, candidate training, or test evaluation was run.",
+            }
         previous = states.get(experiment.name, {})
         if previous.get("status") == "completed":
             if not experiment.smoke and not valid(previous["export"], fingerprint):
@@ -366,6 +406,19 @@ def run(config, root, allow_cpu=False):
                 for path in output.glob("checkpoint-*"):
                     if path.is_dir() and path.name.split("-")[-1].isdigit():
                         shutil.rmtree(path)
+        except Exception as exc:
+            monitor.tick()
+            states[experiment.name].update(
+                status="failed",
+                error_type=type(exc).__name__,
+                error=str(exc),
+                global_step=trainer.state.global_step,
+                numerical_diagnostic=str(output / "numerical_failure.json")
+                if (output / "numerical_failure.json").exists()
+                else None,
+            )
+            atomic_json(state_path, states)
+            raise
         finally:
             # Remove both model references before loading the next experiment.
             del trainer, model
