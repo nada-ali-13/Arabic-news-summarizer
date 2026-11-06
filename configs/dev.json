@@ -1,0 +1,12 @@
+{
+  "source_length": 256,
+  "target_length": 64,
+  "validation_samples": 8,
+  "test_samples": 16,
+  "max_hours": 1,
+  "session_hours": 0.75,
+  "experiments": [
+    {"name":"smoke", "max_steps":2, "train_samples":8, "accumulation":1, "eval_steps":1, "save_steps":1, "smoke":true},
+    {"name":"dev-5e5", "max_steps":10, "train_samples":64, "accumulation":2, "eval_steps":5, "save_steps":5}
+  ]
+}

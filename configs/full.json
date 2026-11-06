@@ -1,0 +1,15 @@
+{
+  "source_length": 1024,
+  "target_length": 128,
+  "validation_samples": 256,
+  "test_samples": 512,
+  "max_hours": 7,
+  "session_hours": 3,
+  "max_storage_gb": 40,
+  "reserve_gb": 7,
+  "experiments": [
+    {"name":"smoke", "max_steps":2, "train_samples":8, "accumulation":1, "eval_steps":1, "save_steps":1, "smoke":true},
+    {"name":"arat5-5e5", "max_steps":1200, "train_samples":37519, "learning_rate":0.00005, "accumulation":16, "eval_steps":100, "save_steps":100},
+    {"name":"arat5-1e4", "max_steps":1200, "train_samples":37519, "learning_rate":0.0001, "accumulation":16, "eval_steps":100, "save_steps":100}
+  ]
+}
