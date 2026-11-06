@@ -9,6 +9,7 @@ Date: **2026-11-06**. Source project inspected before editing: initial commit `9
 - `python -m compileall -q src app.py scripts`: passed.
 - Notebook validated against nbformat 4 and every code cell compiled; all execution outputs remain empty.
 - Built and installed a Python wheel locally without downloading dependencies, then imported the packaged `arabic_summarizer` successfully.
+- **GitHub Actions passed** in a fresh Ubuntu/Python 3.12 runner, including dependency installation, Ruff and pytest, for implementation commit `cd0d89e013ca97116add5fd94237c2769860d285`: [verified run](https://github.com/nada-ali-13/Arabic-news-summarizer/actions/runs/42208195534).
 
 Environment: Python **3.12.14**, PyTorch **2.8.0+cpu**, Transformers **4.57.1**, Accelerate **1.11.0**, Datasets **4.3.0**, Gradio **5.49.1**, SentencePiece **0.2.1**, Trafilatura **2.0.0**, rouge-score **0.1.2**, Ruff **0.14.3**. No CUDA/GPU was used. Test-only dependencies were installed under an external workspace scratch directory, outside the source repository. No large pretrained model checkpoint was downloaded.
 
@@ -43,7 +44,6 @@ One benign warning from the Trainer in the tiny filesystem test: checkpoint mtim
 | Live public article fetch | Controlled fixtures passed. No direct live article fetch was attempted through the restricted cloud network. Proxy-only infrastructure may require text paste. |
 | Browser/device visual presentation | Gradio structure/RTL/event logic tested; visual behavior on target phones/browsers remains unverified. |
 | Hugging Face Spaces / Gradio sharing | Prepared, not deployed or launched publicly. Sharing is initiated by the user running the final notebook cell. |
-| GitHub Actions | Workflow supplied; local equivalent checks passed. Remote workflow status must be checked on GitHub. |
 | Model redistribution license | Exact model card has no explicit weight license. Resolve before public weight redistribution. Dataset license is CC BY-NC-SA 4.0. |
 
 ## User execution required

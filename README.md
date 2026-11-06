@@ -132,7 +132,7 @@ Copy `deployment/README.md` to the root of a new Gradio Space, with `app.py`, `s
 - `scripts/`: saved-output evaluation and measured inference benchmark.
 - `tests/`: unit, security, application and actual tiny-model CPU training/recovery tests.
 - `reports/`: provenance, validation and qualitative-review documentation.
-- `.github/workflows/tests.yml`: repeatable CPU checks; remote workflow success is unverified until GitHub executes it.
+- `.github/workflows/tests.yml`: repeatable CPU checks; [remote CPU validation passed](https://github.com/nada-ali-13/Arabic-news-summarizer/actions/runs/42208195534) for the implementation commit.
 
 ```bash
 pip install -r requirements-dev.txt
