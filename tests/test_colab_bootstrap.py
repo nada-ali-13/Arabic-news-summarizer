@@ -42,6 +42,7 @@ def remote(tmp_path):
     config = path / "src/arabic_summarizer/config.py"
     config.parent.mkdir(parents=True)
     config.write_text("class Config:\n    training_schema_version: int = 2\n")
+    (config.parent / "storage.py").write_text("# storage feature fixture\n")
     (path / "version.txt").write_text("old")
     git(path, "add", ".")
     git(path, "commit", "-m", "old")

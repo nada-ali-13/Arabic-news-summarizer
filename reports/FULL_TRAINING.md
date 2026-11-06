@@ -1,3 +1,5 @@
+> **Storage correction:** The legacy Drive checkpoint procedure below is superseded. For the paused `full-v2-fp32-final-01` run, use [the CPU audit and safe step-10 recovery procedure](STORAGE_RECOVERY.md) before any further GPU training. Preserve checkpoint-10 and the original source/config locks.
+
 # Starting full training after the verified T4 smoke
 
 The user verified the corrected FP32 two-step smoke on a real T4 at source commit **52525c54f683a244f1df71a6403c7e3984d5ac49**, schema 2, status `smoke_completed`, loss `12.97121810913086`, smoke ROUGE-Lsum `0.0`. [Evidence](T4_SMOKE_RESULT.json). These smoke metrics do not establish final summarization quality. This guide starts the original bounded full plan; it does not alter the tested training implementation.

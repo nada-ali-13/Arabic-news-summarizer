@@ -51,12 +51,19 @@ def resolve_revisions(config, root):
     return config
 
 
-def load_model(config, path=None):
+def load_model(config, path=None, cache_dir=None):
     from transformers import AutoModelForSeq2SeqLM
 
+    if cache_dir is not None and path is None:
+        from .recovery import pinned_snapshot
+
+        snapshot = pinned_snapshot(config, cache_dir, include_weights=True)
+    else:
+        snapshot = None
     model = AutoModelForSeq2SeqLM.from_pretrained(
-        path or config.model_id,
-        **({} if path else {"revision": config.model_revision}),
+        path or snapshot or config.model_id,
+        **({} if path or snapshot else {"revision": config.model_revision}),
+        local_files_only=bool(path or snapshot),
         use_safetensors=bool(path),
         weights_only=True,
         low_cpu_mem_usage=True,
@@ -70,7 +77,16 @@ def load_model(config, path=None):
 
 
 def build_trainer(
-    config, experiment, output, model, tokenizer, train, validation, callbacks=(), references=None
+    config,
+    experiment,
+    output,
+    model,
+    tokenizer,
+    train,
+    validation,
+    callbacks=(),
+    references=None,
+    managed_storage=False,
 ):
     import torch
     from transformers import Seq2SeqTrainingArguments
@@ -102,10 +118,10 @@ def build_trainer(
         eval_steps=experiment.eval_steps,
         save_strategy="steps",
         save_steps=experiment.save_steps,
-        save_total_limit=2,
+        save_total_limit=1 if managed_storage else 2,
         save_only_model=False,
-        load_best_model_at_end=True,
-        metric_for_best_model="rougeLsum",
+        load_best_model_at_end=not managed_storage,
+        metric_for_best_model=None if managed_storage else "rougeLsum",
         greater_is_better=True,
         predict_with_generate=True,
         generation_max_length=config.target_length,
@@ -241,49 +257,93 @@ def predict_report(trainer, tokenized, rows, path):
     return report
 
 
-def run(config, root, allow_cpu=False, smoke_only=False):
+def run(config, root, allow_cpu=False, smoke_only=False, storage=None):
     """Run again with the same config/root to recover, without editing experiments."""
     import torch
     from transformers import AutoTokenizer, EarlyStoppingCallback, set_seed
 
     root = Path(root).resolve()
     root.mkdir(parents=True, exist_ok=True)
+    if storage is None and "/drive/" in str(root):
+        from .storage import StorageBlocked
+
+        raise StorageBlocked(
+            "Legacy direct-to-Drive checkpoint writes are disabled. "
+            "Use the storage recovery notebook; existing artifacts are preserved."
+        )
+    if storage is not None:
+        storage.begin(config, root)
+    report_root = storage.control_root if storage else root
     if not torch.cuda.is_available() and not allow_cpu:
         raise RuntimeError("Select a Colab T4 GPU before training (Runtime > Change runtime type).")
-    if shutil.disk_usage(root).free < config.reserve_gb * 1e9:
+    if storage is None and shutil.disk_usage(root).free < config.reserve_gb * 1e9:
         raise RuntimeError("Insufficient Drive space for a full optimizer checkpoint")
-    config = resolve_revisions(config, root)
+    config = resolve_revisions(config, root) if storage is None else storage.config
     set_seed(config.seed)
     fingerprint = config.fingerprint
     session_start = time.monotonic()
-    ledger = read_json(root / "budget.json") if (root / "budget.json").exists() else {"seconds": 0}
+    ledger = (
+        read_json(report_root / "budget.json")
+        if (report_root / "budget.json").exists()
+        else {"seconds": 0}
+    )
     tokenizer = AutoTokenizer.from_pretrained(
-        config.model_id, revision=config.model_revision, use_fast=False
+        storage.tokenizer_source() if storage else config.model_id,
+        **({} if storage else {"revision": config.model_revision}),
+        use_fast=False,
     )
     prepared = root / "prepared"
+    if storage and not (prepared / "complete.json").exists():
+        prepared = storage.local_root / "prepared"
     if (prepared / "complete.json").exists():
         from datasets import load_from_disk
 
         if read_json(prepared / "complete.json")["fingerprint"] != fingerprint:
             raise ValueError("Prepared dataset configuration mismatch")
-        ds = load_from_disk(str(prepared))
+        if storage:
+            local_prepared = storage.local_root / "prepared"
+            if not local_prepared.exists():
+                shutil.copytree(prepared, local_prepared)
+            if read_json(local_prepared / "complete.json")["fingerprint"] != fingerprint:
+                raise ValueError("Local prepared dataset configuration mismatch")
+            ds = load_from_disk(str(local_prepared))
+        else:
+            ds = load_from_disk(str(prepared))
     else:
-        ds = load_official(config, root / "cache")
-        ds.save_to_disk(str(prepared))
-        atomic_json(prepared / "complete.json", {"fingerprint": fingerprint})
+        cache_root = storage.local_root if storage else root
+        ds = load_official(config, cache_root / "cache")
+        local_prepared = cache_root / "prepared"
+        ds.save_to_disk(str(local_prepared))
+        atomic_json(local_prepared / "complete.json", {"fingerprint": fingerprint})
+    if storage:
+        for source in (
+            root / "dataset_statistics.json",
+            storage.local_root / "dataset_statistics.json",
+        ):
+            if source.exists():
+                shutil.copy2(source, report_root / "dataset_statistics.json")
+                break
     val_rows = fixed_subset(ds["validation"], config.validation_samples, config.seed)
     validation = tokenize(val_rows, tokenizer, config)
-    atomic_json(root / "validation_ids.json", list(val_rows["id"]))
-    state_path = root / "experiments.json"
+    atomic_json(report_root / "validation_ids.json", list(val_rows["id"]))
+    state_path = report_root / "experiments.json"
     states = read_json(state_path) if state_path.exists() else {}
+
+    baseline_validation = report_root / "baseline_validation.json"
+    if storage and (root / "baseline_validation.json").exists():
+        baseline_validation = root / "baseline_validation.json"
 
     def evaluate_model(model_path, rows, destination):
         started = time.monotonic()
         trainer = build_trainer(
             config,
             config.experiments[0],
-            root / "evaluation_tmp",
-            load_model(config, model_path),
+            storage.output_dir("evaluation_tmp") if storage else root / "evaluation_tmp",
+            load_model(
+                config,
+                model_path,
+                **({"cache_dir": storage.local_root / "hf-cache"} if storage else {}),
+            ),
             tokenizer,
             None,
             tokenize(rows, tokenizer, config),
@@ -297,7 +357,7 @@ def run(config, root, allow_cpu=False, smoke_only=False):
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
         ledger["seconds"] += time.monotonic() - started
-        atomic_json(root / "budget.json", ledger)
+        atomic_json((storage.control_root if storage else root) / "budget.json", ledger)
         return result
 
     for experiment in config.experiments:
@@ -309,28 +369,52 @@ def run(config, root, allow_cpu=False, smoke_only=False):
             }
         previous = states.get(experiment.name, {})
         if previous.get("status") == "completed":
-            if not experiment.smoke and not valid(previous["export"], fingerprint):
+            if (
+                storage is None
+                and not experiment.smoke
+                and not valid(previous["export"], fingerprint)
+            ):
                 raise RuntimeError("Completed export is corrupt; refusing to silently replace it")
             continue
         if ledger["seconds"] >= config.max_hours * 3600:
             return {"status": "paused", "reason": "total time budget; raise max_hours to continue"}
         if time.monotonic() - session_start >= config.session_hours * 3600:
             return {"status": "paused", "reason": "session time budget; rerun to continue"}
-        if directory_bytes(root) + config.reserve_gb * 1e9 > config.max_storage_gb * 1e9:
+        if (
+            storage is None
+            and directory_bytes(root) + config.reserve_gb * 1e9 > config.max_storage_gb * 1e9
+        ):
             return {
                 "status": "paused",
                 "reason": "storage budget; archive old runs or raise budget",
             }
-        if not experiment.smoke and not (root / "baseline_validation.json").exists():
-            evaluate_model(None, val_rows, root / "baseline_validation.json")
+        if not experiment.smoke and not baseline_validation.exists():
+            evaluate_model(None, val_rows, baseline_validation)
             if ledger["seconds"] >= config.max_hours * 3600:
                 return {"status": "paused", "reason": "time budget reached during baseline"}
-        output = root / "experiments" / experiment.name
-        checkpoint = latest_checkpoint(output, fingerprint)
+        output = (
+            storage.output_dir(experiment.name)
+            if storage
+            else root / "experiments" / experiment.name
+        )
+        if storage:
+            storage.preflight()
+        checkpoint = (
+            storage.resume_for(experiment.name)
+            if storage
+            else latest_checkpoint(output, fingerprint)
+        )
+        if storage and storage.finalize_saved_completion(experiment, checkpoint, states):
+            storage.release_completed_local(experiment.name)
+            continue
         train = tokenize(
             fixed_subset(ds["train"], experiment.train_samples, config.seed), tokenizer, config
         )
-        monitor = budget_callback(config, root, fingerprint, ledger, session_start)
+        monitor = (
+            storage.callback(experiment, ledger, session_start)
+            if storage
+            else budget_callback(config, root, fingerprint, ledger, session_start)
+        )
         experiment_started = ledger["seconds"]
         states[experiment.name] = {
             **previous,
@@ -340,7 +424,11 @@ def run(config, root, allow_cpu=False, smoke_only=False):
         }
         atomic_json(state_path, states)
         set_seed(config.seed)
-        model = load_model(config)
+        model = (
+            load_model(config, checkpoint, cache_dir=storage.local_root / "hf-cache")
+            if storage
+            else load_model(config)
+        )
         trainer = build_trainer(
             config,
             experiment,
@@ -350,11 +438,18 @@ def run(config, root, allow_cpu=False, smoke_only=False):
             train,
             validation.select(range(min(2, len(validation)))) if experiment.smoke else validation,
             [monitor]
-            + ([] if experiment.smoke else [EarlyStoppingCallback(early_stopping_patience=3)]),
+            + (
+                []
+                if experiment.smoke or storage
+                else [EarlyStoppingCallback(early_stopping_patience=3)]
+            ),
             references=list(val_rows["summary"])[:2]
             if experiment.smoke
             else list(val_rows["summary"]),
+            managed_storage=storage is not None,
         )
+        if storage:
+            storage.persist_diagnostics(experiment.name)
         try:
             trainer.train(resume_from_checkpoint=checkpoint)
             monitor.tick()
@@ -368,6 +463,13 @@ def run(config, root, allow_cpu=False, smoke_only=False):
                 )
                 atomic_json(state_path, states)
                 return {"status": "paused", "reason": monitor.stopped}
+            if storage:
+                states[experiment.name]["runtime_seconds"] = (
+                    previous.get("runtime_seconds", 0) + ledger["seconds"] - experiment_started
+                )
+                storage.completion(experiment, trainer, states)
+                atomic_json(state_path, states)
+                continue
             # Trainer has loaded the best validation checkpoint, not necessarily the last.
             metrics = trainer.evaluate()
             if "eval_rougeLsum" not in metrics or not all(
@@ -407,9 +509,14 @@ def run(config, root, allow_cpu=False, smoke_only=False):
                     if path.is_dir() and path.name.split("-")[-1].isdigit():
                         shutil.rmtree(path)
         except Exception as exc:
+            from .storage import StorageBlocked
+
+            quota_pause = storage is not None and isinstance(exc, StorageBlocked)
             monitor.tick()
+            if storage:
+                storage.persist_diagnostics(experiment.name)
             states[experiment.name].update(
-                status="failed",
+                status="paused" if quota_pause else "failed",
                 error_type=type(exc).__name__,
                 error=str(exc),
                 global_step=trainer.state.global_step,
@@ -418,21 +525,29 @@ def run(config, root, allow_cpu=False, smoke_only=False):
                 else None,
             )
             atomic_json(state_path, states)
+            if quota_pause:
+                return {"status": "paused", "reason": str(exc)}
             raise
         finally:
             # Remove both model references before loading the next experiment.
             del trainer, model
             gc.collect()
+            if storage and states.get(experiment.name, {}).get("status") == "completed":
+                storage.release_completed_local(experiment.name)
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
-    best = update_best(root, states, fingerprint)
+    best = (
+        {"path": storage.best_path(), "drive_artifact": storage.store.index["best"]}
+        if storage
+        else update_best(root, states, fingerprint)
+    )
     # Test evaluation begins only when the complete bounded plan is finished.
-    report_path = root / "final_report.json"
+    report_path = report_root / "final_report.json"
     if report_path.exists():
         return read_json(report_path)
     rows = fixed_subset(ds["test"], config.test_samples, config.seed)
-    atomic_json(root / "test_ids.json", list(rows["id"]))
-    baseline_path = root / "baseline_test.json"
+    atomic_json(report_root / "test_ids.json", list(rows["id"]))
+    baseline_path = report_root / "baseline_test.json"
     if not baseline_path.exists():
         if (
             ledger["seconds"] >= config.max_hours * 3600
@@ -440,7 +555,7 @@ def run(config, root, allow_cpu=False, smoke_only=False):
         ):
             return {"status": "paused", "reason": "time budget before baseline test evaluation"}
         evaluate_model(None, rows, baseline_path)
-    tuned_path = root / "best_test.json"
+    tuned_path = report_root / "best_test.json"
     if not tuned_path.exists():
         if (
             ledger["seconds"] >= config.max_hours * 3600
@@ -455,7 +570,7 @@ def run(config, root, allow_cpu=False, smoke_only=False):
         "status": "completed",
         "config": config.to_dict(),
         "best": best,
-        "baseline_validation": read_json(root / "baseline_validation.json")["metrics"],
+        "baseline_validation": read_json(baseline_validation)["metrics"],
         "baseline_test": read_json(baseline_path)["metrics"],
         "finetuned_test": read_json(tuned_path)["metrics"],
         "compute_seconds": ledger["seconds"],

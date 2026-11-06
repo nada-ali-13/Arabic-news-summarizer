@@ -1,0 +1,5 @@
+{
+  "account_cap_bytes": null,
+  "safety_margin_bytes": 1000000000,
+  "write_overhead_ratio": 0.10
+}

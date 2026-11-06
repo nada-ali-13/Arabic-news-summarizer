@@ -116,10 +116,14 @@ def test_atomic_state_and_best_is_never_downgraded(tmp_path):
     assert read_json(tmp_path / "best.json")["path"] == "/good"
 
 
-def test_notebook_schema_and_all_code_cells_compile():
+@pytest.mark.parametrize(
+    "name",
+    ["Arabic_News_Summarizer_Training.ipynb", "Arabic_News_Summarizer_Storage_Recovery.ipynb"],
+)
+def test_notebook_schema_and_all_code_cells_compile(name):
     import nbformat
 
-    notebook = nbformat.read(ROOT / "notebooks/Arabic_News_Summarizer_Training.ipynb", as_version=4)
+    notebook = nbformat.read(ROOT / "notebooks" / name, as_version=4)
     nbformat.validate(notebook)
     for i, cell in enumerate(notebook.cells):
         if cell.cell_type == "code":
