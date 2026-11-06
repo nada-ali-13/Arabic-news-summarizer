@@ -42,6 +42,7 @@ class Experiment:
 
 @dataclass(frozen=True)
 class Config:
+    training_schema_version: int = 2
     model_id: str = "UBC-NLP/AraT5v2-base-1024"
     dataset_id: str = "csebuetnlp/xlsum"
     model_revision: str = "main"
@@ -55,10 +56,12 @@ class Config:
     session_hours: float = 3.0
     max_storage_gb: float = 40.0
     reserve_gb: float = 7.0
-    mixed_precision: str = "fp16"
+    mixed_precision: str = "no"
     experiments: list[Experiment] = field(default_factory=list)
 
     def __post_init__(self):
+        if self.training_schema_version != 2:
+            raise ValueError("Old training schema: use a fresh run directory for the numerical fix")
         for name in (
             "seed",
             "source_length",

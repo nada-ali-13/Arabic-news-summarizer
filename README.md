@@ -2,11 +2,13 @@
 
 Arabic news/article **abstractive summarization** using supervised transfer learning from `UBC-NLP/AraT5v2-base-1024` on the **Arabic subset of `csebuetnlp/xlsum`**. The primary deliverable is a complete Colab notebook with persistent full-state recovery, supported by reusable Python modules and an Arabic Gradio application.
 
-[Open the training notebook in Colab](https://colab.research.google.com/github/nada-ali-13/Arabic-news-summarizer/blob/codex/arabic-summarizer/notebooks/Arabic_News_Summarizer_Training.ipynb)
+[Open the training notebook in Colab](https://colab.research.google.com/github/nada-ali-13/Arabic-news-summarizer/blob/main/notebooks/Arabic_News_Summarizer_Training.ipynb)
 
-**Current evidence:** CPU tests include actual optimization, interruption, full Trainer resume, export, independent loading, and inference using an offline tiny random T5. AraT5v2 training on a T4, real XL-Sum ROUGE, trained-model CPU latency and deployment are **pending**. Test-model scores are not project-quality results. See [validation](reports/VALIDATION.md) and [compatibility/licensing](reports/COMPATIBILITY.md).
+**Current evidence:** CPU tests include actual optimization, interruption, full Trainer resume, export, independent loading, and inference using an offline tiny random T5. The user verified a real Colab T4 FP32 two-step smoke at commit `52525c5` ([recorded evidence](reports/T4_SMOKE_RESULT.json)). Completion of the full training plan, final XL-Sum quality metrics, trained-model CPU latency and deployment remain **pending**. Test-model scores are not project-quality results. See [validation](reports/VALIDATION.md) and [compatibility/licensing](reports/COMPATIBILITY.md).
 
 ## Run in Colab
+
+For the reported nonfinite smoke failure, use the [safe correction/restart procedure](reports/COLAB_RESTART.md). It explains the verified inherited-AMP precision bug and preserves all old Drive runs. The corrected two-step FP32 smoke passed on the user's real T4. Use the [full training/recovery guide](reports/FULL_TRAINING.md) for the next stage; preserve development and failed-run directories.
 
 1. Open the notebook above. Choose **Runtime → Change runtime type → T4 GPU**.
 2. Choose **Run all**, then authorize the normal Google Drive mount. No Hugging Face account, login or token is needed for these public resources.
@@ -16,7 +18,7 @@ Arabic news/article **abstractive summarization** using supervised transfer lear
 6. Inspect `final_report.json`, `best_test.json` and `baseline_test.json` on Drive. Review the qualitative examples before claiming quality.
 7. Run the optional last application cell to create a temporary public Gradio presentation link. This link expires and is not a deployment.
 
-Critical files live in `MyDrive/ArabicNewsSummarizer/full-v1/` (or `dev-v1/`). Colab code/package installation is ephemeral and can be recreated. The source commit and upstream model/dataset commit SHAs are locked on first execution. Installed package versions are recorded.
+Critical files live in `MyDrive/ArabicNewsSummarizer/full-v2-numerics/` (or `dev-v2-numerics/`). Colab code/package installation is ephemeral and can be recreated. The source commit and upstream model/dataset commit SHAs are locked on first execution. Installed package versions are recorded.
 
 ## Architecture
 
@@ -56,11 +58,13 @@ Official split membership is retained. Exact normalized-source hashes, IDs and n
 
 The two learning rates provide a small comparison between conservative and faster adaptation. Each candidate starts from the same pinned pretrained model, seed, training order and fixed validation subset. The smoke run is excluded from best-model selection and its checkpoints are deleted only after success; its audit record remains.
 
-Full training uses source length 1,024, target length 128, batch size 1, accumulation 16, AdamW, linear scheduling, 6% warmup, weight decay 0.01, clipping at 1.0, gradient checkpointing, dynamic padding and T4 FP16. Early stopping has patience 3 validation evaluations. Saves/evaluations occur every 100 optimizer steps. Generation uses deterministic four-beam search and a three-token repetition block. Seeds are fixed, but exact cross-hardware determinism is not guaranteed.
+Development and full modes explicitly default to FP32; selected precision is applied and verified against Accelerator, so a prior AMP environment cannot silently override it. Full training uses source length 1,024, target length 128, batch size 1, accumulation 16, AdamW, linear scheduling, 6% warmup, weight decay 0.01, clipping at 1.0, gradient checkpointing and dynamic padding. FP32 is the default; FP16 remains configurable and must pass its own smoke test. Early stopping has patience 3 validation evaluations. Saves/evaluations occur every 100 optimizer steps. Generation uses deterministic four-beam search and a three-token repetition block. Seeds are fixed, but exact cross-hardware determinism is not guaranteed.
 
-The default session budget is 3 hours and cumulative compute budget 7 hours. Evaluation/checkpoint I/O can exceed a time boundary; checks occur between optimizer steps/stages. This is a stopping criterion, not a promise both experiments fit a free Colab session. Rerunning after a session pause continues the plan. If the total budget is exhausted, explicitly raise `max_hours`; raise storage limits only when space is available. Budget fields can change on restart; changed training semantics require a new run directory. T4 does not support BF16. Nonfinite losses/metrics must be investigated; use a new run with `mixed_precision="no"` if FP16 overflows.
+The default session budget is 3 hours and cumulative compute budget 7 hours. Evaluation/checkpoint I/O can exceed a time boundary; checks occur between optimizer steps/stages. This is a stopping criterion, not a promise both experiments fit a free Colab session. Rerunning after a session pause continues the plan. If the total budget is exhausted, explicitly raise `max_hours`; raise storage limits only when space is available. Budget fields can change on restart; changed training semantics require a new run directory. T4 does not support BF16. Nonfinite loss, gradients or metrics stop execution with exact diagnostics. A new directory alone does not reset AMP state; follow the linked restart procedure rather than assuming a logged configuration proves FP32 was active.
 
 ## Recovery and artifact integrity
+
+The numerical correction uses training schema 2, which deliberately rejects old schema-1 run configs/checkpoints. Preserve old runs and start a new v2 directory. Within v2, the existing full-state resume behavior is retained. `run(..., smoke_only=True)` verifies only smoke; setting it to `False` later continues the same plan without retraining completed smoke.
 
 Checkpoints are saved **directly to Drive** under `experiments/<name>/checkpoint-<global_step>/`. This trades some I/O speed for persistence and avoids losing an entire session's checkpoints in `/content`.
 

@@ -139,6 +139,10 @@ def test_real_trainer_interruption_resume_export_and_final_evaluation(tmp_path, 
 
     monkeypatch.setattr(training, "budget_callback", stop_once)
     run_dir = tmp_path / "run"
+    smoke = training.run(config, run_dir, allow_cpu=True, smoke_only=True)
+    assert smoke["status"] == "smoke_completed"
+    assert not (run_dir / "baseline_validation.json").exists()
+    assert not (run_dir / "experiments/candidate").exists()
     first = training.run(config, run_dir, allow_cpu=True)
     assert first["status"] == "paused"
     assert not (run_dir / "baseline_test.json").exists()

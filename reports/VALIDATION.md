@@ -4,6 +4,8 @@ Date: **2026-11-06**. Source project inspected before editing: initial commit `9
 
 ## Executed successfully
 
+This report records the initial build. For the correction's 80 CPU tests and the subsequent user-verified real T4 smoke, see [numerical validation](NUMERICS_VALIDATION.md) and [recorded T4 evidence](T4_SMOKE_RESULT.json). Full-plan training/quality and real Colab interruption recovery remain pending.
+
 - **62 pytest cases passed**. Machine-readable results: [pytest.xml](pytest.xml).
 - `ruff check .`: passed, including Python source, tests, scripts and notebook code cells.
 - `python -m compileall -q src app.py scripts`: passed.
