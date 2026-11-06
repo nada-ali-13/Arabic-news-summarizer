@@ -1,3 +1,5 @@
+> **Storage correction:** The legacy Drive checkpoint procedure below is superseded. For the paused `full-v2-fp32-final-01` run, use [the CPU audit and safe step-10 recovery procedure](STORAGE_RECOVERY.md) before any further GPU training. Preserve checkpoint-10 and the original source/config locks.
+
 # Safely retrying the corrected smoke test
 
 ## What is established

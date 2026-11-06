@@ -1,0 +1,35 @@
+{
+  "evidence_source": "User-reported real Google Colab/Drive inspection; no direct account inspection by Codex",
+  "run_name": "full-v2-fp32-final-01",
+  "optimizer_step": 10,
+  "status": "paused",
+  "pause_reason": "Drive free-space reserve",
+  "reported_account": {
+    "capacity_gb_label": 15,
+    "used_before_gb_label": 0.17,
+    "free_before_gb_label": 15.93,
+    "used_after_gb_label": 12.74,
+    "gmail_gb_label": 0,
+    "photos_gb_label": 0,
+    "trash_approx_gb_label": 8,
+    "note": "UI GB/GiB labels are approximate. Actual limits and charges must be read in API bytes."
+  },
+  "active_project_approx_decimal_gb": {
+    "total": 4.74,
+    "checkpoint10_optimizer": 2.94,
+    "checkpoint10_model": 1.47,
+    "prepared_data": 0.19,
+    "other": 0.14
+  },
+  "confirmed_cause": "Recently deleted training optimizer/model artifacts remain in Drive Trash and count against account quota.",
+  "code_findings": [
+    "Legacy smoke saved full optimizer/model checkpoints at steps 1 and 2.",
+    "Legacy mounted-directory cleanup used shutil.rmtree, which did not establish account quota reclamation.",
+    "The reserve callback forced a new large checkpoint after detecting low free space, without reserving the write size.",
+    "The project cap and mounted filesystem free space did not enforce actual Drive account quota including Trash."
+  ],
+  "preservation_rule": "Do not delete, rewrite or corrupt the valid checkpoint-10 or original source/config locks.",
+  "attribution": "The account was nearly empty before this run; unexplained usage is not attributed to pre-existing user files.",
+  "codex_live_drive_actions": "None",
+  "new_storage_t4_verification": "Pending CPU account roundtrip and real T4 recovery; local CPU regressions only"
+}

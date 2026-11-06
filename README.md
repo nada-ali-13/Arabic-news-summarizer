@@ -8,12 +8,14 @@ Arabic news/article **abstractive summarization** using supervised transfer lear
 
 ## Run in Colab
 
+**Paused at step 10 / Drive Trash incident:** Use the [storage audit and safe recovery procedure](reports/STORAGE_RECOVERY.md) and [CPU recovery notebook](notebooks/Arabic_News_Summarizer_Storage_Recovery.ipynb) first. The old runner put deleted full-state smoke checkpoints into quota-charged Trash. The new profile stages locally, checks actual account quota, preserves checkpoint-10 and requires explicit confirmation before permanent cleanup. Its full-size T4 storage recovery remains to be verified.
+
 For the reported nonfinite smoke failure, use the [safe correction/restart procedure](reports/COLAB_RESTART.md). It explains the verified inherited-AMP precision bug and preserves all old Drive runs. The corrected two-step FP32 smoke passed on the user's real T4. Use the [full training/recovery guide](reports/FULL_TRAINING.md) for the next stage; preserve development and failed-run directories.
 
 1. Open the notebook above. Choose **Runtime → Change runtime type → T4 GPU**.
 2. Choose **Run all**, then authorize the normal Google Drive mount. No Hugging Face account, login or token is needed for these public resources.
-3. Keep the default `MODE="full"` for final training. For a short development run, change the notebook mode to `dev` before its first run. No code edits are needed between experiments.
-4. Keep Drive space available: the default project budget is 40 GB, including a 7 GB reserve for a full checkpoint. Actual Drive availability is checked. Training may pause before using the reserve.
+3. Keep the default `MODE="full"` for final training. For a short development run, change the notebook mode to `dev` before its first run. No experiment configuration edits are needed between experiments; reviewed retention approvals may pause execution.
+4. Use the actual Drive API account quota, including Trash. The legacy 40 GB project setting does not grant capacity. Follow the storage guide for a measured replacement budget; the 15 GB account may be insufficient even after cleanup.
 5. If disconnected, reopen the same notebook and run all with the same mode/path. Completed experiments are skipped and an interrupted experiment resumes automatically.
 6. Inspect `final_report.json`, `best_test.json` and `baseline_test.json` on Drive. Review the qualitative examples before claiming quality.
 7. Run the optional last application cell to create a temporary public Gradio presentation link. This link expires and is not a deployment.
@@ -31,8 +33,8 @@ flowchart LR
   E --> F[Smoke test then supervised AraT5v2 experiments]
   D --> F
   F --> G[Validation ROUGE-Lsum selection]
-  F <--> H[Drive full-state checkpoints and manifests]
-  G --> I[Immutable model and tokenizer export]
+  F <--> H[Local staging and validated lossless Drive archives]
+  G --> I[Global best model and tokenizer archive]
   I --> J[Final held-out comparison and qualitative report]
   I --> K[CPU or CUDA inference]
   L[Text or secured URL extraction] --> K
@@ -56,7 +58,7 @@ Official split membership is retained. Exact normalized-source hashes, IDs and n
 | dev | 2 optimizer steps, 8 rows | 10 steps, 64 rows, accumulation 2 | validation 8; final test 16 |
 | full | 2 optimizer steps, 8 rows | two independent 1,200-step runs, LR 5e-5 and 1e-4, up to all train rows | validation 256; final test 512 |
 
-The two learning rates provide a small comparison between conservative and faster adaptation. Each candidate starts from the same pinned pretrained model, seed, training order and fixed validation subset. The smoke run is excluded from best-model selection and its checkpoints are deleted only after success; its audit record remains.
+The two learning rates provide a small comparison between conservative and faster adaptation. Each candidate starts from the same pinned pretrained model, seed, training order and fixed validation subset. The smoke run is excluded from best-model selection. In the managed profile its checkpoints remain on local Colab disk; its audit record persists.
 
 Development and full modes explicitly default to FP32; selected precision is applied and verified against Accelerator, so a prior AMP environment cannot silently override it. Full training uses source length 1,024, target length 128, batch size 1, accumulation 16, AdamW, linear scheduling, 6% warmup, weight decay 0.01, clipping at 1.0, gradient checkpointing and dynamic padding. FP32 is the default; FP16 remains configurable and must pass its own smoke test. Early stopping has patience 3 validation evaluations. Saves/evaluations occur every 100 optimizer steps. Generation uses deterministic four-beam search and a three-token repetition block. Seeds are fixed, but exact cross-hardware determinism is not guaranteed.
 
@@ -66,11 +68,11 @@ The default session budget is 3 hours and cumulative compute budget 7 hours. Eva
 
 The numerical correction uses training schema 2, which deliberately rejects old schema-1 run configs/checkpoints. Preserve old runs and start a new v2 directory. Within v2, the existing full-state resume behavior is retained. `run(..., smoke_only=True)` verifies only smoke; setting it to `False` later continues the same plan without retraining completed smoke.
 
-Checkpoints are saved **directly to Drive** under `experiments/<name>/checkpoint-<global_step>/`. This trades some I/O speed for persistence and avoids losing an entire session's checkpoints in `/content`.
+The Colab storage profile writes raw checkpoints on local disk, compresses them losslessly and publishes verified archives through the Drive API. Existing legacy `experiments/<name>/checkpoint-<step>/` files remain protected. Direct-to-Drive training writes are blocked; use the recovery notebook for existing runs.
 
 Each includes model weights, optimizer, scheduler, Trainer state, global step/epoch, RNG state, training arguments and project configuration, plus AMP scaler state where the Trainer provides it. After the Trainer finishes saving, a SHA-256 manifest and `complete.json` commit marker are written. Recovery validates every listed file and ignores partial/corrupt checkpoints. It tries older saves before failing clearly when no complete checkpoint survives. `resume_from_checkpoint` restores the actual training state. Hashes detect accidental corruption; they do not authenticate files from unknown sources. Resume only your own trusted artifacts.
 
-The Trainer retains at most two checkpoints per experiment (including its best). Completed real experiments export model/tokenizer into unique immutable `exports/<experiment>-<id>/` directories. An atomic `best.json` points to the highest validation ROUGE-Lsum; a worse later experiment cannot replace it. Checkpoints, exports and tokens are excluded from Git.
+The managed profile retains one current full-state archive across experiments and one global best model/tokenizer archive, plus its immutable base. Replacements coexist until validated and explicitly approved for retirement. Losing completed experiments retain metrics rather than extra exports. The local-only runner retains its original two-checkpoint/export behavior. Checkpoints, exports and tokens are excluded from Git.
 
 Unsaved steps since the last completed checkpoint may be lost. Drive disconnection/deletion cannot be undone by this code. A terminated runtime must be reopened by the user. Do not run concurrent notebooks against the same directory. For a new experiment plan, use a new run directory; do not delete the previous best export.
 
@@ -139,7 +141,7 @@ Copy `deployment/README.md` to the root of a new Gradio Space, with `app.py`, `s
 - `.github/workflows/tests.yml`: repeatable CPU checks; [remote CPU validation passed](https://github.com/nada-ali-13/Arabic-news-summarizer/actions/runs/42208195534) for the implementation commit.
 
 ```bash
-pip install -r requirements-dev.txt
+pip install -r requirements-dev.txt -r requirements-storage.txt
 ruff check .
 pytest -q
 python -m compileall -q src app.py scripts
