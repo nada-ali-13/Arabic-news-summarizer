@@ -14,26 +14,26 @@ The corrected pipeline explicitly sets the selected effective precision before c
 
 1. Open the **updated notebook from this correction PR**, not the earlier saved copy. Before merge, use the correction branch or exact fixed commit shown in the PR. After merge, the permanent default is `CODE_REF="main"`.
 2. Use **Runtime → Disconnect and delete runtime** (or a fresh Colab session), then select **T4 GPU**. This resets imported Python modules, monkey patches, Accelerator/AMP state and the ephemeral `/content` checkout. It does **not** delete Google Drive experiments. Do not reuse the earlier temporary `traced_budget` monkey patch in the fresh session.
-3. In the Drive/configuration cell set `MODE = "dev"` and use a **new empty directory**, for example:
+3. Set all retry options together in the **Drive/setup cell only**. Later cells no longer overwrite `CODE_REF` or `SMOKE_ONLY`. For example:
 
    ```python
    MODE = "dev"
-   RUN_DIR = Path("/content/drive/MyDrive/ArabicNewsSummarizer/dev-v2-numerics-first-retry")
-   RUN_DIR.mkdir(parents=True, exist_ok=True)
+   CODE_REF = "563378c795da2ac483b9725c1c1d5486ef880622"
+   SMOKE_ONLY = True
+   RUN_NAME = "dev-v2-source-fixed-retry"
    ```
 
    Keep `dev-v1`, `dev-fp32-test`, `dev-log-diagnostic` and every old `source_commit.json`/checkpoint untouched. Check the new directory is empty before its first run. The notebook default has moved to `<mode>-v2-numerics` to avoid reusing v1 directories.
-4. In the source cell, before the PR is merged, set:
+4. Before this PR is merged, the setup cell must select the fixed SHA above or this correction branch:
 
    ```python
    CODE_REF = "codex/fix-smoke-numerics"  # or the exact fixed commit SHA from the PR
    ```
 
-   The updated helper **fetches that ref even when a code checkout already exists**, checks out the fetched commit, prints its SHA and pins it in the NEW directory's `source_commit.json`. Do not simply change `CODE_REF` inside an old pinned run: an existing lock intentionally wins. Never delete or rewrite an old lock to force different code onto its checkpoints. Dirty checkouts are refused without deleting local edits.
-5. In the training cell, keep the new `configs/dev.json` precision (`"no"`) and set:
+   Do not assign `CODE_REF` in a separate cell before setup, because setup defines these settings. The updated helper **fetches that ref even when a code checkout already exists**, checks out the fetched commit, prints its SHA and pins it in the NEW directory's `source_commit.json`. Do not simply change `CODE_REF` inside an old pinned run: an existing lock intentionally wins. Never delete or rewrite an old lock to force different code onto its checkpoints. Dirty checkouts are refused without deleting local edits.
+5. Keep the new `configs/dev.json` precision (`"no"`). `SMOKE_ONLY=True` is already set in setup; the training cell uses it directly:
 
    ```python
-   SMOKE_ONLY = True
    result = run(config, RUN_DIR, smoke_only=SMOKE_ONLY)
    ```
 
@@ -52,3 +52,9 @@ Training schema **2** is part of the run fingerprint. Old v1 run configs/checkpo
 The loss is checked before backward; unscaled gradient norms are checked before clipping/Adam using `error_if_nonfinite=True`; evaluation loss and all logged numeric fields remain checked. Genuine NaN/Infinity stops execution. The implementation does not use `nan_to_num`, suppress the failing field, skip a bad batch, alter model architecture/loss scaling, automatically downgrade precision, or publish successful results for a failed run.
 
 The original tokenization already avoided fixed target padding, and the base collator already used `-100` for dynamic label padding. There is no evidence that bad label masking caused the supplied trace. The corrected collator makes that invariant explicit, rejects empty/all-ignored targets (which produce NaN mean cross-entropy), validates token ranges and source masks, and tests decoder shifting. Official data splits and conservative Arabic normalization are unchanged.
+
+## If the schema guard reports old source
+
+A confirmed failed retry selected `CODE_REF=main`, loaded commit `f2da46c7cf0f5e78ffb202952aa6bad8ea67285e` and pinned it under `full-v2-numerics`. PR #2 was not merged, so main still had schema 1. This is a source-selection failure before training, not another numerical failure. Preserve that directory and its lock. Use a fresh runtime and new `RUN_NAME`, with the four setup values above. Reopen the latest notebook rather than reusing a saved earlier copy.
+
+The hardened bootstrap now checks the fetched source schema **before installing/importing project code or writing a new source lock**. An incompatible ref reports requested ref, fetched SHA, schema and source file. No new lock is written on rejection; existing locks stay unchanged. This prevents a mistaken pre-merge `main` selection from silently creating a stale pin.

@@ -20,7 +20,7 @@ The correction explicitly sets/verifies the effective precision; development and
 
 ## Executed checks
 
-- **77 pytest cases passed** on Python 3.12.14, PyTorch 2.8.0+cpu, Transformers 4.57.1, Accelerate 1.11.0. See [machine-readable results](pytest-numerics.xml).
+- **80 pytest cases passed** on Python 3.12.14, PyTorch 2.8.0+cpu, Transformers 4.57.1, Accelerate 1.11.0. See [machine-readable results](pytest-numerics.xml).
 - Ruff passed for the entire repository, including notebook cells.
 - Python source compilation passed.
 - Notebook schema validation and compilation of every code cell passed in pytest.
@@ -31,6 +31,7 @@ The correction explicitly sets/verifies the effective precision; development and
 - Dynamic `-100` label padding, decoder shifting, all-ignored-target rejection, token range checks, numeric scalar logging and explicit nonfinite JSON representation are covered.
 - The actual notebook source-checkout helper is executed against local Git remotes: new runs fetch updated main rather than stale HEAD; existing source locks stay pinned; exact commit checkout works; dirty user edits are preserved.
 - Old run configuration schemas are refused without modification.
+- Notebook retry settings are defined once in setup. Pre-fix main is rejected before writing a fresh source lock, and existing incompatible source locks are preserved. This covers the user-confirmed `main`/`f2da46c` source-selection failure before training.
 
 Benign Trainer warnings about unreliable filesystem mtimes falling back to numerical checkpoint ordering remain in the tiny tests.
 
