@@ -10,9 +10,9 @@
 
 | الدفتر | الغرض | فتح مباشر |
 |---|---|---|
-| [Arabic_News_Gradio.ipynb](notebooks/Arabic_News_Gradio.ipynb) | عرض خُلاصة من الأوزان المحفوظة، دون تدريب | [Colab](https://colab.research.google.com/github/nada-ali-13/Arabic-news-summarizer/blob/codex/khulasa-final-submission/notebooks/Arabic_News_Gradio.ipynb) |
-| [Arabic_News_Evaluation.ipynb](notebooks/Arabic_News_Evaluation.ipynb) | تقييم 300 اختبار و100 تحقق ومقارنة نموذجي 200 و1200 خطوة | [Colab](https://colab.research.google.com/github/nada-ali-13/Arabic-news-summarizer/blob/codex/khulasa-final-submission/notebooks/Arabic_News_Evaluation.ipynb) |
-| [Arabic_News_Training_1200.ipynb](notebooks/Arabic_News_Training_1200.ipynb) | توثيق تجربة التدريب النهائية؛ لا حاجة لإعادتها لعرض المشروع | [Colab](https://colab.research.google.com/github/nada-ali-13/Arabic-news-summarizer/blob/codex/khulasa-final-submission/notebooks/Arabic_News_Training_1200.ipynb) |
+| [Arabic_News_Gradio.ipynb](notebooks/Arabic_News_Gradio.ipynb) | عرض خُلاصة من الأوزان المحفوظة، دون تدريب | [Colab](https://colab.research.google.com/github/nada-ali-13/Arabic-news-summarizer/blob/main/notebooks/Arabic_News_Gradio.ipynb) |
+| [Arabic_News_Evaluation.ipynb](notebooks/Arabic_News_Evaluation.ipynb) | تقييم 300 اختبار و100 تحقق ومقارنة نموذجي 200 و1200 خطوة | [Colab](https://colab.research.google.com/github/nada-ali-13/Arabic-news-summarizer/blob/main/notebooks/Arabic_News_Evaluation.ipynb) |
+| [Arabic_News_Training_1200.ipynb](notebooks/Arabic_News_Training_1200.ipynb) | توثيق تجربة التدريب النهائية؛ لا حاجة لإعادتها لعرض المشروع | [Colab](https://colab.research.google.com/github/nada-ali-13/Arabic-news-summarizer/blob/main/notebooks/Arabic_News_Training_1200.ipynb) |
 
 الروابط تشير إلى فرع التسليم لتعمل قبل دمج PR. مصادر خلايا الدفاتر من حزمة التسليم كما وردت، بمخرجات نظيفة؛ أزيلت فقط بيانات عرض widgets القديمة ومراجع مخرجات Colab من دفتر التدريب. تثبّت مصدر المساعدات عند `d1b24cbeef87aa61e45693fd5f7895a9f8db6f05` للحفاظ على إعدادات التجربة الفعلية؛ دفتر العرض يتضمن خلية الواجهة النهائية بنفسه. يستدعي آخر دفتر التدريب 1200 واجهة من ذلك المصدر المثبّت؛ للعرض النهائي استخدم **دفتر Gradio** أو `app.py` الحالي.
 
