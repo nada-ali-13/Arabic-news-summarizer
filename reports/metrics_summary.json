@@ -1,0 +1,168 @@
+{
+  "protocol": {
+    "dataset": "Arabic XL-Sum v2",
+    "test_n": 300,
+    "validation_n": 100,
+    "seed": 42,
+    "source_length": 1024,
+    "target_length": 128,
+    "num_beams": 4,
+    "generative ROUGE not accuracy": true,
+    "test_reused_for_prior_64_result": true
+  },
+  "models": {
+    "1200": "/content/drive/MyDrive/ArabicNewsSummarizer/improved-fp32-1200-20261106-173127-a391a9/model",
+    "200": "/content/drive/MyDrive/ArabicNewsSummarizer/single-fp32-20261106-165157-322fa1/model"
+  },
+  "rouge": {
+    "1200_test": {
+      "rouge1": 29.320177705959427,
+      "rouge2": 13.886157527756389,
+      "rougeL": 25.206173935452846,
+      "rougeLsum": 25.237263848895704
+    },
+    "1200_validation": {
+      "rouge1": 28.486761990585514,
+      "rouge2": 12.943748123666431,
+      "rougeL": 25.67536796713533,
+      "rougeLsum": 25.79536796713533
+    },
+    "200_test": {
+      "rouge1": 25.3503447358719,
+      "rouge2": 11.09086387690931,
+      "rougeL": 21.49789367594596,
+      "rougeLsum": 21.51545531052887
+    },
+    "200_validation": {
+      "rouge1": 27.172215918611485,
+      "rouge2": 11.815322435064163,
+      "rougeL": 24.183964530326975,
+      "rougeLsum": 24.183964530326975
+    }
+  },
+  "comparisons": {
+    "test": {
+      "rouge1": {
+        "old": 25.3503447358719,
+        "new": 29.320177705959427,
+        "delta_points": 3.969832970087527,
+        "relative_improvement_percent": 15.659877652354096,
+        "point_delta": 3.9698329700875212,
+        "ci95_points": [
+          2.444,
+          5.347
+        ]
+      },
+      "rouge2": {
+        "old": 11.09086387690931,
+        "new": 13.886157527756389,
+        "delta_points": 2.7952936508470785,
+        "relative_improvement_percent": 25.203570090394457,
+        "point_delta": 2.795293650847078,
+        "ci95_points": [
+          1.459,
+          3.97
+        ]
+      },
+      "rougeL": {
+        "old": 21.49789367594596,
+        "new": 25.206173935452846,
+        "delta_points": 3.7082802595068856,
+        "relative_improvement_percent": 17.249505069680797,
+        "point_delta": 3.708280259506887,
+        "ci95_points": [
+          2.311,
+          5.036
+        ]
+      },
+      "rougeLsum": {
+        "old": 21.51545531052887,
+        "new": 25.237263848895704,
+        "delta_points": 3.721808538366833,
+        "relative_improvement_percent": 17.298302474433424,
+        "point_delta": 3.7218085383668296,
+        "ci95_points": [
+          2.308,
+          5.049
+        ]
+      }
+    },
+    "validation": {
+      "rouge1": {
+        "old": 27.172215918611485,
+        "new": 28.486761990585514,
+        "delta_points": 1.3145460719740285,
+        "relative_improvement_percent": 4.8378316877484995,
+        "point_delta": 1.3145460719740274,
+        "ci95_points": [
+          -1.09,
+          3.545
+        ]
+      },
+      "rouge2": {
+        "old": 11.815322435064163,
+        "new": 12.943748123666431,
+        "delta_points": 1.1284256886022686,
+        "relative_improvement_percent": 9.550528094379006,
+        "point_delta": 1.128425688602266,
+        "ci95_points": [
+          -0.785,
+          3.1
+        ]
+      },
+      "rougeL": {
+        "old": 24.183964530326975,
+        "new": 25.67536796713533,
+        "delta_points": 1.4914034368083549,
+        "relative_improvement_percent": 6.166910453983331,
+        "point_delta": 1.4914034368083535,
+        "ci95_points": [
+          -1.02,
+          3.956
+        ]
+      },
+      "rougeLsum": {
+        "old": 24.183964530326975,
+        "new": 25.79536796713533,
+        "delta_points": 1.6114034368083558,
+        "relative_improvement_percent": 6.663107013689328,
+        "point_delta": 1.6114034368083536,
+        "ci95_points": [
+          -0.939,
+          4.156
+        ]
+      }
+    }
+  },
+  "diagnostics": {
+    "1200_test": {
+      "avg_source_words": 361.20666666666665,
+      "avg_reference_words": 24.016666666666666,
+      "avg_prediction_words": 17.02,
+      "empty_predictions": 0,
+      "mean_repeated_bigram_fraction": 0.0008697054336608786
+    },
+    "1200_validation": {
+      "avg_source_words": 355.2,
+      "avg_reference_words": 24.06,
+      "avg_prediction_words": 17.61,
+      "empty_predictions": 0,
+      "mean_repeated_bigram_fraction": 0.0006666666666666666
+    },
+    "200_test": {
+      "avg_source_words": 361.20666666666665,
+      "avg_reference_words": 24.016666666666666,
+      "avg_prediction_words": 12.21,
+      "empty_predictions": 0,
+      "mean_repeated_bigram_fraction": 0.0008897243107769422
+    },
+    "200_validation": {
+      "avg_source_words": 355.2,
+      "avg_reference_words": 24.06,
+      "avg_prediction_words": 12.51,
+      "empty_predictions": 0,
+      "mean_repeated_bigram_fraction": 0.0004761904761904762
+    }
+  },
+  "warning": "ROUGE cannot establish factual correctness. Inspect review CSV manually; test already inspected previously."
+}

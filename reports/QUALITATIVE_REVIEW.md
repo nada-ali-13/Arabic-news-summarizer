@@ -1,3 +1,5 @@
+> **سجل تاريخي:** يصف هذا الملف العمل السابق، وليس مسار تسليم خُلاصة النهائي. راجع [README الحالي](../README.md) و[النتائج النهائية](metrics_summary.json).
+
 # Qualitative evaluation sheet
 
 Status: **pending actual trained-model outputs and human review**. Use 10–20 saved examples from `best_test.json`, include a range of source lengths and topics, and keep the IDs. Do not choose only good examples. Compare the same rows against `baseline_test.json`.

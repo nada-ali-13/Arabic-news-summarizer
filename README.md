@@ -1,152 +1,133 @@
-# Arabic News Summarizer | ملخّص الأخبار العربية
+# خُلاصة | Khulasa
 
-Arabic news/article **abstractive summarization** using supervised transfer learning from `UBC-NLP/AraT5v2-base-1024` on the **Arabic subset of `csebuetnlp/xlsum`**. The primary deliverable is a complete Colab notebook with persistent full-state recovery, supported by reusable Python modules and an Arabic Gradio application.
+**الخبر كاملًا؟ خذ خُلاصته.**
 
-[Open the training notebook in Colab](https://colab.research.google.com/github/nada-ali-13/Arabic-news-summarizer/blob/main/notebooks/Arabic_News_Summarizer_Training.ipynb)
+خُلاصة تطبيق لتلخيص الأخبار العربية توليديًا، طوّرته **ندى علي** باستخدام `UBC-NLP/AraT5v2-base-1024` بعد ضبطه إشرافيًا على الجزء العربي من **XL-Sum**. يحوّل نص الخبر أو رابط المقال إلى ملخص عربي، مع اختيار الطول ونسخ النتيجة وعرض عدد الكلمات ونسبة الاختصار وزمن التوليد.
 
-**Current evidence:** CPU tests include actual optimization, interruption, full Trainer resume, export, independent loading, and inference using an offline tiny random T5. The user verified a real Colab T4 FP32 two-step smoke at commit `52525c5` ([recorded evidence](reports/T4_SMOKE_RESULT.json)). Completion of the full training plan, final XL-Sum quality metrics, trained-model CPU latency and deployment remain **pending**. Test-model scores are not project-quality results. See [validation](reports/VALIDATION.md) and [compatibility/licensing](reports/COMPATIBILITY.md).
+اكتمل تدريب النموذج النهائي لمدة **1200 خطوة**، وتضم الحزمة نتائج تقييمه الفعلية. الأوزان موجودة في **مجلد Google Drive خاص**؛ لا يتضمن GitHub الأوزان ولا يتيح تنزيلها تلقائيًا. يحتاج المدرّس أو أي متعاون إلى إذن مستقل للوصول إلى ملفات النموذج الكاملة قبل تشغيل التلخيص. لا توجد استضافة دائمة أو صور واجهة مرفقة في المستودع.
 
-## Run in Colab
+## الدفاتر النهائية
 
-For the reported nonfinite smoke failure, use the [safe correction/restart procedure](reports/COLAB_RESTART.md). It explains the verified inherited-AMP precision bug and preserves all old Drive runs. The corrected two-step FP32 smoke passed on the user's real T4. Use the [full training/recovery guide](reports/FULL_TRAINING.md) for the next stage; preserve development and failed-run directories.
+| الدفتر | الغرض | فتح مباشر |
+|---|---|---|
+| [Arabic_News_Gradio.ipynb](notebooks/Arabic_News_Gradio.ipynb) | عرض خُلاصة من الأوزان المحفوظة، دون تدريب | [Colab](https://colab.research.google.com/github/nada-ali-13/Arabic-news-summarizer/blob/codex/khulasa-final-submission/notebooks/Arabic_News_Gradio.ipynb) |
+| [Arabic_News_Evaluation.ipynb](notebooks/Arabic_News_Evaluation.ipynb) | تقييم 300 اختبار و100 تحقق ومقارنة نموذجي 200 و1200 خطوة | [Colab](https://colab.research.google.com/github/nada-ali-13/Arabic-news-summarizer/blob/codex/khulasa-final-submission/notebooks/Arabic_News_Evaluation.ipynb) |
+| [Arabic_News_Training_1200.ipynb](notebooks/Arabic_News_Training_1200.ipynb) | توثيق تجربة التدريب النهائية؛ لا حاجة لإعادتها لعرض المشروع | [Colab](https://colab.research.google.com/github/nada-ali-13/Arabic-news-summarizer/blob/codex/khulasa-final-submission/notebooks/Arabic_News_Training_1200.ipynb) |
 
-1. Open the notebook above. Choose **Runtime → Change runtime type → T4 GPU**.
-2. Choose **Run all**, then authorize the normal Google Drive mount. No Hugging Face account, login or token is needed for these public resources.
-3. Keep the default `MODE="full"` for final training. For a short development run, change the notebook mode to `dev` before its first run. No code edits are needed between experiments.
-4. Keep Drive space available: the default project budget is 40 GB, including a 7 GB reserve for a full checkpoint. Actual Drive availability is checked. Training may pause before using the reserve.
-5. If disconnected, reopen the same notebook and run all with the same mode/path. Completed experiments are skipped and an interrupted experiment resumes automatically.
-6. Inspect `final_report.json`, `best_test.json` and `baseline_test.json` on Drive. Review the qualitative examples before claiming quality.
-7. Run the optional last application cell to create a temporary public Gradio presentation link. This link expires and is not a deployment.
+الروابط تشير إلى فرع التسليم لتعمل قبل دمج PR. مصادر خلايا الدفاتر من حزمة التسليم كما وردت، بمخرجات نظيفة؛ أزيلت فقط بيانات عرض widgets القديمة ومراجع مخرجات Colab من دفتر التدريب. تثبّت مصدر المساعدات عند `d1b24cbeef87aa61e45693fd5f7895a9f8db6f05` للحفاظ على إعدادات التجربة الفعلية؛ دفتر العرض يتضمن خلية الواجهة النهائية بنفسه. يستدعي آخر دفتر التدريب 1200 واجهة من ذلك المصدر المثبّت؛ للعرض النهائي استخدم **دفتر Gradio** أو `app.py` الحالي.
 
-Critical files live in `MyDrive/ArabicNewsSummarizer/full-v2-numerics/` (or `dev-v2-numerics/`). Colab code/package installation is ephemeral and can be recreated. The source commit and upstream model/dataset commit SHAs are locked on first execution. Installed package versions are recorded.
-
-## Architecture
+## البنية وطريقة العمل
 
 ```mermaid
-flowchart LR
-  A[Official Arabic XL-Sum archive] --> B[Schema validation and conservative normalization]
-  B --> C[Official splits and leakage removal]
-  C --> D[Fixed validation subset]
-  C --> E[Dynamic padding and tokenization]
-  E --> F[Smoke test then supervised AraT5v2 experiments]
-  D --> F
-  F --> G[Validation ROUGE-Lsum selection]
-  F <--> H[Drive full-state checkpoints and manifests]
-  G --> I[Immutable model and tokenizer export]
-  I --> J[Final held-out comparison and qualitative report]
-  I --> K[CPU or CUDA inference]
-  L[Text or secured URL extraction] --> K
-  K --> M[Arabic RTL Gradio Blocks]
+flowchart TD
+  A[XL-Sum العربية: التقسيمات الرسمية] --> B[تنظيف محافظ وإزالة التداخل]
+  B --> C[ضبط AraT5v2: تجربة واحدة، FP32، 1200 خطوة]
+  C --> D[تصدير الأوزان وTokenizer إلى Drive خاص]
+  D --> E[تقييم: test 300 وvalidation 100]
+  D --> F[تحميل النموذج المحفوظ للاستدلال]
+  G[نص الخبر أو استخراج رابط عام] --> F
+  F --> H[واجهة خُلاصة العربية RTL]
 ```
 
-## Model, dataset and preprocessing
+AraT5v2 نموذج encoder–decoder من عائلة T5 بسياق 1024 token. التدريب **Full-parameter supervised fine-tuning** على أزواج المقال والملخص، وليس LoRA؛ جميع المعاملات قابلة للتدريب. تستخدم البيانات التقسيمات الرسمية لـ`csebuetnlp/xlsum` من أرشيف Arabic XL-Sum v2: عدد الصفوف قبل التنظيف 37,519 تدريبًا و4,689 تحققًا و4,689 اختبارًا.
 
-The selected model is an encoder-decoder T5 with a 1,024-token supported context. Its public weights are approximately 1.47 GB in a PyTorch state dictionary. Initial loading uses PyTorch ≥2.6 with `weights_only=True`; local checkpoints/exports use `safetensors`. The large upstream model is deliberately not downloaded during CPU CI.
+تحافظ المعالجة على الحروف العربية والأرقام والتشكيل، وتطبّع Unicode وتزيل التطويل والمحارف غير المرئية وتوحّد المسافات. تُزال الصفوف الفارغة والتداخلات المطابقة في النص المطبّع أو المعرّفات أو الروابط بين التقسيمات، بأولوية الاختبار ثم التحقق ثم التدريب. لا يكشف ذلك التشابه الدلالي أو تلوث بيانات التدريب المسبق؛ قد تبقى تكرارات داخل الاختبار الرسمي.
 
-The published Arabic XL-Sum splits contain **37,519 train / 4,689 validation / 4,689 test** rows before cleaning. `data.py` downloads the official 44.9 MB `arabic_XLSum_v2.0.tar.bz2` from the same dataset repository. This avoids the obsolete executable `xlsum.py` loader, which modern `datasets` versions no longer support. It does not substitute another dataset. Archive paths are never extracted to the filesystem.
+## بروتوكول التدريب والتقييم
 
-Normalization applies NFC, removes tatweel and invisible format/control characters, and collapses whitespace. Hamza forms, alef variants, ya/alif maqsura, ta marbuta, diacritics and numbers are retained. No aggressive stemming or letter folding is applied. Empty text/summary rows are removed and schema failures stop execution.
+التجربة النهائية مستقلة عن نموذج 200 خطوة، وبدأت من الأوزان الأصلية المدرّبة مسبقًا. الإعدادات: FP32، معدل تعلّم `5e-5`، batch size يساوي 1، تجميع gradients كل 8 دفعات، AdamW وجدولة linear مع warmup بنسبة 6%، weight decay يساوي 0.01، وقص gradients عند 1.0. حد المصدر 1024 وحد الهدف 128 token، والبذرة 42. استُخدم gradient checkpointing لتقليل الذاكرة؛ وهو مختلف عن حفظ checkpoints على القرص.
 
-Official split membership is retained. Exact normalized-source hashes, IDs and nonempty URLs prevent overlap: held-out test rows have priority over validation, which has priority over training. Usable test rows are retained, including internal test duplicates; duplicates in lower-priority splits are excluded. This detects exact matches, not semantic near-duplicates or possible pretraining contamination. Statistics, removal counts and representative examples are saved in `dataset_statistics.json`.
+الحد 1200 optimizer step مع ميزانية تدريب 85 دقيقة وإيقاف طبيعي عند نهاية الخطوة. لا توجد checkpoints دورية أو استعادة optimizer/scheduler/RNG. يبقى العمل في `/content`، ثم تُصدّر الأوزان النهائية وTokenizer بصيغة safetensors إلى مجلد Drive جديد. فقدان الجلسة قبل التصدير يفقد التقدم. هذا توثيق للتجربة المكتملة وليس طلبًا لإعادتها.
 
-## Bounded training plan
+دفتر التدريب يحتوي تقييمًا أوليًا على 64 مثال اختبار و96 تحققًا. **النتائج النهائية أدناه من دفتر التقييم المنفصل**: 300 مقال test و100 validation، ببذرة 42، مع مقارنة النموذجين على الأمثلة نفسها. مجموعة الـ300 تتضمن مجموعة الـ64 التي استُخدمت سابقًا للمقارنة؛ لذلك فهذا تقييم موسّع وصفي، وليس اختبارًا جديدًا مستقلًا تمامًا عن قرارات التطوير.
 
-| Mode | Smoke | Genuine candidate training | Evaluation subset |
-|---|---|---|---|
-| dev | 2 optimizer steps, 8 rows | 10 steps, 64 rows, accumulation 2 | validation 8; final test 16 |
-| full | 2 optimizer steps, 8 rows | two independent 1,200-step runs, LR 5e-5 and 1e-4, up to all train rows | validation 256; final test 512 |
+التوليد في التقييم: FP32، أربع حزم بحث (`num_beams=4`)، دون sampling، حتى 128 token جديدًا وبحد أدنى 8، ومنع تكرار ثلاثيات tokens و`repetition_penalty=1.1`. تُقتطع المدخلات إلى 1024 token. تُحسب ROUGE بمتوسط F1 لكل مثال ×100، باستخدام tokenizer يحافظ على الكلمات العربية دون stemming، وحدود جمل عربية/لاتينية لـROUGE-Lsum. المقارنة مع أوراق علمية تتطلب تطابق المعالجة والبروتوكول.
 
-The two learning rates provide a small comparison between conservative and faster adaptation. Each candidate starts from the same pinned pretrained model, seed, training order and fixed validation subset. The smoke run is excluded from best-model selection and its checkpoints are deleted only after success; its audit record remains.
+## النتائج الفعلية
 
-Development and full modes explicitly default to FP32; selected precision is applied and verified against Accelerator, so a prior AMP environment cannot silently override it. Full training uses source length 1,024, target length 128, batch size 1, accumulation 16, AdamW, linear scheduling, 6% warmup, weight decay 0.01, clipping at 1.0, gradient checkpointing and dynamic padding. FP32 is the default; FP16 remains configurable and must pass its own smoke test. Early stopping has patience 3 validation evaluations. Saves/evaluations occur every 100 optimizer steps. Generation uses deterministic four-beam search and a three-token repetition block. Seeds are fixed, but exact cross-hardware determinism is not guaranteed.
+المصدر: [metrics_summary.json](reports/metrics_summary.json)، محفوظ **دون تغيير** من حزمة التسليم. الأرقام هنا مقربة لأربع منازل؛ لم يُعد Codex حسابها بتشغيل النموذج.
 
-The default session budget is 3 hours and cumulative compute budget 7 hours. Evaluation/checkpoint I/O can exceed a time boundary; checks occur between optimizer steps/stages. This is a stopping criterion, not a promise both experiments fit a free Colab session. Rerunning after a session pause continues the plan. If the total budget is exhausted, explicitly raise `max_hours`; raise storage limits only when space is available. Budget fields can change on restart; changed training semantics require a new run directory. T4 does not support BF16. Nonfinite loss, gradients or metrics stop execution with exact diagnostics. A new directory alone does not reset AMP state; follow the linked restart procedure rather than assuming a logged configuration proves FP32 was active.
+| المجموعة | النموذج | ROUGE-1 | ROUGE-2 | ROUGE-L | ROUGE-Lsum |
+|---|---|---:|---:|---:|---:|
+| test — 300 مقال | 200 خطوة | 25.3503 | 11.0909 | 21.4979 | 21.5155 |
+| test — 300 مقال | **1200 خطوة** | **29.3202** | **13.8862** | **25.2062** | **25.2373** |
+| validation — 100 مقال، منفصلة | 200 خطوة | 27.1722 | 11.8153 | 24.1840 | 24.1840 |
+| validation — 100 مقال، منفصلة | 1200 خطوة | 28.4868 | 12.9437 | 25.6754 | 25.7954 |
 
-## Recovery and artifact integrity
+تحسن ROUGE-Lsum على الاختبار بمقدار **3.7218 نقطة**، أي **17.2983% نسبيًا** مقابل نموذج 200 خطوة على الأمثلة نفسها. فاصل الثقة paired bootstrap بنسبة 95% لفرق الاختبار `[2.308, 5.049]` نقطة؛ أما فرق validation ففاصله `[-0.939, 4.156]` ويشمل الصفر.
 
-The numerical correction uses training schema 2, which deliberately rejects old schema-1 run configs/checkpoints. Preserve old runs and start a new v2 directory. Within v2, the existing full-state resume behavior is retained. `run(..., smoke_only=True)` verifies only smoke; setting it to `False` later continues the same plan without retraining completed smoke.
+**ROUGE ليس Accuracy ولا درجة لصحة الوقائع.** حقول التدقيق البشري لم تُملأ، ولم تكتمل مراجعة الحقائق. قد يختلق النموذج أسماء أو أعدادًا أو أحداثًا، أو يحذف حقائق أساسية؛ يجب مراجعة المصدر.
 
-Checkpoints are saved **directly to Drive** under `experiments/<name>/checkpoint-<global_step>/`. This trades some I/O speed for persistence and avoids losing an entire session's checkpoints in `/content`.
+## تشغيل العرض على Colab
 
-Each includes model weights, optimizer, scheduler, Trainer state, global step/epoch, RNG state, training arguments and project configuration, plus AMP scaler state where the Trainer provides it. After the Trainer finishes saving, a SHA-256 manifest and `complete.json` commit marker are written. Recovery validates every listed file and ignores partial/corrupt checkpoints. It tries older saves before failing clearly when no complete checkpoint survives. `resume_from_checkpoint` restores the actual training state. Hashes detect accidental corruption; they do not authenticate files from unknown sources. Resume only your own trusted artifacts.
+1. افتح دفتر **Arabic_News_Gradio** واختر جلسة جديدة؛ يُفضّل T4 GPU.
+2. احصل على وصول مسموح إلى الأوزان الكاملة وTokenizer. عدّل `MODEL_DIR` في خلية الإعدادات إلى مجلد `/model` المتاح لحسابك؛ المسار المرفق خاص ببيئة المؤلفة ولا يمنح صلاحية وصول.
+3. شغّل خلايا التثبيت، وربط Drive، وجلب المساعدات، وتحميل النموذج واختباره، ثم خلية Gradio بالترتيب. لا تشغّل دفتر التدريب لعرض التطبيق.
+4. أدخل نصًا أو رابطًا واحدًا واختر قصيرًا أو متوسطًا أو طويلًا. استخدم زر النسخ لنسخ الملخص، وزر المسح لإفراغ الحقول.
 
-The Trainer retains at most two checkpoints per experiment (including its best). Completed real experiments export model/tokenizer into unique immutable `exports/<experiment>-<id>/` directories. An atomic `best.json` points to the highest validation ROUGE-Lsum; a worse later experiment cannot replace it. Checkpoints, exports and tokens are excluded from Git.
+`share=True` ينشئ رابط `gradio.live` عامًا **مؤقتًا** يحتاج إلى استمرار جلسة Colab؛ لا يمثل استضافة دائمة. أوقف خلية الواجهة أو الجلسة لإنهائه. **لم يختبر Codex هذه النسخة مباشرة على Colab الخاص بالمستخدمة.**
 
-Unsaved steps since the last completed checkpoint may be lost. Drive disconnection/deletion cannot be undone by this code. A terminated runtime must be reopened by the user. Do not run concurrent notebooks against the same directory. For a new experiment plan, use a new run directory; do not delete the previous best export.
+## التشغيل المحلي
 
-## Evaluation
-
-The pretrained model is evaluated on the fixed validation subset before genuine fine-tuning. All candidates use the same IDs and generation settings. Model selection uses validation ROUGE-Lsum only. After the complete plan finishes, pretrained and selected fine-tuned models are evaluated on an identical seeded test subset. Set `test_samples` to 4,689 in a **new run configuration** if a full test evaluation is required; the default is explicitly a fixed subset.
-
-Metrics are mean per-example F1 ×100: ROUGE-1, ROUGE-2, ROUGE-L and ROUGE-Lsum. `rouge-score` is given a Unicode word tokenizer: its default English-only tokenizer would discard Arabic. Stemming is disabled. Arabic/Latin sentence punctuation determines newline boundaries for ROUGE-Lsum. Conservative normalization matches training. These scores are not directly interchangeable with papers using different Arabic segmentation or normalization. Generation length is bounded. Training labels are truncated to the target token limit for loss computation, while ROUGE uses the full normalized reference summaries. Saved examples retain those same full references for independent recomputation.
-
-```bash
-python scripts/evaluate.py /path/to/run/best_test.json
-```
-
-Raw predictions, full references, sources and IDs are saved for qualitative review. Use [the review rubric](reports/QUALITATIVE_REVIEW.md) to check factuality, coverage, repetitions, fluency, length and completeness. ROUGE measures overlap, not truthfulness. No evaluation scores are fabricated or prefilled.
-
-## Local application
-
-Use Python 3.10–3.13 (validated on 3.12). Create a virtual environment. On CPU-only machines install CPU PyTorch first to avoid unnecessary CUDA downloads:
+المطلوب Python 3.10–3.13، وPyTorch 2.6 أو أحدث ضمن الإصدار 2، ومجلد نموذج كامل ممنوح لك. يضم المجلد `config.json`، ملفات safetensors، وملفات Tokenizer بما فيها `tokenizer_config.json` وملف المفردات المناسب. لا تستخدم مجلد تجربة قديمًا أو ملف JSON بدل مجلد النموذج.
 
 ```bash
+git clone https://github.com/nada-ali-13/Arabic-news-summarizer.git
+cd Arabic-news-summarizer
+git switch codex/khulasa-final-submission
 python -m venv .venv
 source .venv/bin/activate
-pip install torch==2.8.0 --index-url https://download.pytorch.org/whl/cpu
-pip install -e .
-export ARABIC_SUMMARIZER_MODEL=/absolute/path/to/selected/export
+python -m pip install torch==2.8.0 --index-url https://download.pytorch.org/whl/cpu
+python -m pip install -e .
+export USE_TF=0 USE_FLAX=0
+export ARABIC_SUMMARIZER_MODEL=/absolute/path/to/permitted/model
 python app.py
 ```
 
-Alternatively copy the complete selected export to `artifacts/best/`. Do not point inference at the experiment root or `best.json`; use the directory named by its `path`. Model weights are loaded lazily on the first request. CPU uses float32; CUDA uses float16. To inspect the untrained baseline explicitly, set the model variable to `UBC-NLP/AraT5v2-base-1024`; this does not make it a fine-tuned summarizer. The app defaults to requiring a trained local export.
+افتح العنوان المحلي الذي يطبعه Gradio. لمشاركة عامة مؤقتة اختياريًا: `python app.py --share`. في Colab احتفظ بنسخة PyTorch/CUDA الموجودة بدل تثبيت نسخة CPU. البديل الافتراضي محليًا هو `artifacts/best/`، لكنه غير مرفق. يستورد التطبيق ويبني الواجهة دون تحميل الأوزان ثم يحمّلها عند أول طلب؛ لا يعتمد على متغير `summarizer` عام في notebook.
 
-The Arabic RTL interface accepts text **or** a URL, provides short/medium/long preferences (64/96/128 generation-token ceilings), a copy button, word counts, reduction percentage and generation time. Length is a preference, not a guaranteed word count; reduction can be negative if output is longer. Examples are original project-written passages. One inference runs at a time and the queue is bounded.
+يمكن استخدام الواجهة الحالية من دفتر مع نموذج محمّل بالفعل:
 
-Long inputs use token windows with no silent truncation: summarize each window, then recursively summarize the merged outputs. Inputs over 16 windows or 100,000 characters are rejected. This can lose cross-section relationships and compounds summarization errors. Training/evaluation use truncation to the configured source limit; the UI's hierarchical path is a separately documented inference strategy.
-
-### Article URLs
-
-Use public HTTP/HTTPS article URLs on standard ports. The fetcher rejects userinfo, nonweb schemes, nonpublic/private/local/metadata addresses and mixed public/private DNS answers. Every redirect is resolved and checked again. Connections use a validated numeric IP, preserving the original Host header and HTTPS certificate/SNI hostname, preventing DNS rebinding between validation and connection. Automatic redirects, retries, environment proxies and cookies are disabled. Responses are bounded to 2 MB, with connection/read timeouts and a streaming wall-time check; compressed replies are rejected to avoid decompression bombs.
-
-Trafilatura extracts the main body. No browser, JavaScript execution or subresource downloads occur. Paywalls, bot protection, unavailable DNS, proxy-only networks and JavaScript-only pages can fail. Paste text manually when the Arabic error asks you to do so. Live public fetching was not verified in the restricted build environment; controlled Arabic HTML/redirect/security fixtures were exercised.
-
-### CPU memory and latency
-
-The upstream float32 weights alone are about 1.47 GB; Python, tokenization, beam search and activations add memory. Budget **at least 4–6 GB RAM as an initial estimate**, then measure on the target machine. This is not a verified hosting minimum and a small free CPU Space may be insufficient. Long inputs can be slow.
-
-```bash
-python scripts/benchmark.py --model /path/to/export --text-file article.txt --device cpu --runs 3
+```python
+from app import build_app
+demo = build_app(summarizer=summarizer)
+demo.launch(share=True, inline=True)
 ```
 
-The benchmark records actual cold load, generation times and Linux peak RSS. No full-model CPU timing has been measured here, because the 1.47 GB weights were intentionally not downloaded. Tiny-test latency is not representative.
+الاستدلال المحلي يستخدم FP32 على CPU أو CUDA مثل دفتر العرض النهائي. الأوزان وحدها تقارب 1.47 GB؛ يلزم هامش إضافي لـPython والبحث بالحزم والمدخلات. تقدير RAM أولي 4–6 GB ليس حدًا مقاسًا للاستضافة. لم تُقَس سرعة النموذج الكامل محليًا.
 
-## Hugging Face Spaces preparation
+## قدرات الواجهة وحدودها
 
-Development, Colab training and local testing need no Hugging Face account. Publishing to Spaces later requires an account, available hardware, authorization and resolving the model-weight redistribution license. Nothing has been deployed.
+- إدخال نص أو استخراج مقال من رابط HTTP/HTTPS عام. قد تفشل الصفحات المحمية أو الديناميكية؛ الصق النص عند الفشل. يحتفظ المستخرج بفحوص العناوين العامة والتحويلات وحدود الاستجابة والمهلة.
+- أطوال قصير/متوسط/طويل بحدود توليد 64/96/128 token، وليست عدد كلمات مضمونًا. قد تكون نسبة الاختصار سالبة إذا طال الناتج.
+- النصوص الطويلة في التطبيق تُلخّص على مقاطع ثم تدمج؛ قد تضيع العلاقات بينها وتتراكم الأخطاء. يختلف ذلك عن اقتطاع المصدر في التقييم. تُرفض المدخلات فوق 100 ألف حرف أو 16 مقطعًا.
+- واجهة عربية RTL تتكيف مع الشاشات الصغيرة، مع أخطاء الإدخال وتحذيرات النتيجة. طلب توليد واحد في الوقت نفسه وطابور محدود.
+- لا يوجد تحقق آلي من صحة الأخبار، ولا ضمان لتغطية كل التفاصيل أو التعميم خارج الأخبار العربية.
 
-Copy `deployment/README.md` to the root of a new Gradio Space, with `app.py`, `src/`, `pyproject.toml` and `requirements.txt`. Add the exported model/tokenizer under `artifacts/best/` using the host's supported large-file workflow, or configure an accessible model repository and `ARABIC_SUMMARIZER_MODEL`. Set `PYTHONPATH=src` in the Space environment when using this source layout. Do not commit checkpoints to this source Git repository. Choose hardware based on measured memory/latency, rather than assuming free CPU capacity is sufficient.
+## تنظيم المستودع والتحقق
 
-## Repository map and checks
+| المسار | الدور |
+|---|---|
+| `app.py` | واجهة خُلاصة النهائية مع `build_app(summarizer=None)` |
+| `notebooks/Arabic_News_{Training_1200,Evaluation,Gradio}.ipynb` | الدفاتر النهائية المرفقة |
+| `src/arabic_summarizer/` | مساعدات النص والبيانات والمقاييس والاستدلال والروابط والسلامة العددية؛ ووحدات تدريب تاريخية محفوظة |
+| `reports/metrics_summary.json` | النتائج الفعلية كما وردت |
+| [reports/FINAL_SUBMISSION.md](reports/FINAL_SUBMISSION.md) | تدقيق الملفات ومصدر الحزمة والتحقق وحدوده |
+| `tests/` | اختبارات المساعدات والأمان والواجهة والدفاتر؛ واختبارات قديمة محفوظة |
 
-- `notebooks/Arabic_News_Summarizer_Training.ipynb`: primary executable notebook.
-- `src/arabic_summarizer/`: config, data, text, ROUGE, checkpoints, training, inference and secure articles.
-- `configs/`: development/full bounded plans.
-- `app.py`: Arabic Gradio Blocks UI, with no model downloads on import/build.
-- `scripts/`: saved-output evaluation and measured inference benchmark.
-- `tests/`: unit, security, application and actual tiny-model CPU training/recovery tests.
-- `reports/`: provenance, validation and qualitative-review documentation.
-- `.github/workflows/tests.yml`: repeatable CPU checks; [remote CPU validation passed](https://github.com/nada-ali-13/Arabic-news-summarizer/actions/runs/42208195534) for the implementation commit.
+دفتر `Arabic_News_Summarizer_Training.ipynb` و`configs/dev.json` و`configs/full.json` ووحدتا `training.py` و`checkpoints.py` وتقارير التشغيل القديمة **تاريخية**، وليست المسار الموصى به للتسليم. احتُفظ بها في أماكنها لوجود اعتمادات واختبارات؛ لم يُدمج PR #3 أو PR #4، ولم تُضف منظومة الاستعادة القديمة إلى الدفاتر النهائية.
 
 ```bash
-pip install -r requirements-dev.txt
+python -m pip install -r requirements-dev.txt
 ruff check .
-pytest -q
+USE_TF=0 USE_FLAX=0 HF_HUB_OFFLINE=1 GRADIO_ANALYTICS_ENABLED=False pytest -q
 python -m compileall -q src app.py scripts
 ```
 
-## Presenting to an instructor
+تتحقق اختبارات الدفاتر من البنية وصياغة كل خلية دون تنفيذ التدريب أو تحميل النموذج. اختبارات التدريب القديمة تستخدم T5 صغيرًا عشوائيًا محليًا؛ لا تمثل تدريب نموذج المشروع أو نتائج جودته. راجع [تقرير التسليم](reports/FINAL_SUBMISSION.md) لمعرفة الفحوص المنفذة فعليًا.
 
-Explain transfer learning from an Arabic denoising T5 to article→summary supervision. Show the official split policy, one recorded optimizer checkpoint, and the recovery log's resumed global step. Display the real baseline/fine-tuned test comparison, then inspect an accurate example and a failure case. Demonstrate text input, an accessible URL, length preferences and copying. Keep a saved local example in case external sites fail. Report compute/time budgets, the fixed evaluation subset, any pauses, license uncertainty and limitations honestly. Do not present a development run as final-quality training.
+## النسب والمراجع
 
-Future work includes semantic deduplication, human factuality evaluation, morphology-aware comparison metrics, more capable long-document handling and measured deployment optimization. These are not claimed implemented features.
+**تصميم وتطوير: ندى علي.**
+
+المشروع مبني على [AraT5](https://aclanthology.org/2022.acl-long.47/) و[AraT5v2 / Octopus](https://aclanthology.org/2023.arabicnlp-1.20/) و[XL-Sum](https://aclanthology.org/2021.findings-acl.413/) ومصادر BBC ضمن البيانات. ترخيص XL-Sum هو CC BY-NC-SA 4.0؛ ترخيص البيانات منفصل عن حقوق أوزان النموذج. راجع [سجل التوافق والمراجع](reports/COMPATIBILITY.md). لا يفترض المستودع الإذن بإعادة نشر الأوزان؛ أي استضافة مستقبلية تحتاج وصولًا مسموحًا وموارد مقاسة ومراجعة حقوق الاستخدام.

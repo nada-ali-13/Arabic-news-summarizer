@@ -1,3 +1,5 @@
+> **سجل تاريخي:** يصف هذا الملف العمل السابق، وليس مسار تسليم خُلاصة النهائي. راجع [README الحالي](../README.md) و[النتائج النهائية](metrics_summary.json).
+
 # Safely retrying the corrected smoke test
 
 ## What is established
