@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "arabic-news-summarizer"
 version = "1.0.0"
-description = "Restartable AraT5v2 Arabic XL-Sum summarization"
+description = "Khulasa: Arabic news summarization with fine-tuned AraT5v2"
 requires-python = ">=3.10,<3.14"
 dynamic = ["dependencies"]
 
@@ -24,3 +24,10 @@ line-length = 100
 
 [tool.ruff.lint]
 select = ["E4", "E7", "E9", "F", "I"]
+
+# Preserve authoritative handoff cell sources unchanged. Notebook schema and every
+# code cell's syntax are checked by tests/test_notebooks.py; retain other lint rules.
+[tool.ruff.lint.per-file-ignores]
+"notebooks/Arabic_News_Training_1200.ipynb" = ["E402", "I001"]
+"notebooks/Arabic_News_Evaluation.ipynb" = ["E401", "E402", "E701", "E702", "F401", "I001"]
+"notebooks/Arabic_News_Gradio.ipynb" = ["I001"]

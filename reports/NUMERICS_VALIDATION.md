@@ -1,3 +1,5 @@
+> **سجل تاريخي:** يصف هذا الملف العمل السابق، وليس مسار تسليم خُلاصة النهائي. راجع [README الحالي](../README.md) و[النتائج النهائية](metrics_summary.json).
+
 # Numerical correction: evidence and validation
 
 Based on latest main `f2da46c` (the original implementation is merged). No existing user experiments or model artifacts were edited.

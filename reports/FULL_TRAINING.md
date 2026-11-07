@@ -1,3 +1,5 @@
+> **سجل تاريخي:** يصف هذا الملف العمل السابق، وليس مسار تسليم خُلاصة النهائي. راجع [README الحالي](../README.md) و[النتائج النهائية](metrics_summary.json).
+
 # Starting full training after the verified T4 smoke
 
 The user verified the corrected FP32 two-step smoke on a real T4 at source commit **52525c54f683a244f1df71a6403c7e3984d5ac49**, schema 2, status `smoke_completed`, loss `12.97121810913086`, smoke ROUGE-Lsum `0.0`. [Evidence](T4_SMOKE_RESULT.json). These smoke metrics do not establish final summarization quality. This guide starts the original bounded full plan; it does not alter the tested training implementation.

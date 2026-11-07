@@ -1,3 +1,5 @@
+> **سجل تاريخي:** يصف هذا الملف العمل السابق، وليس مسار تسليم خُلاصة النهائي. راجع [README الحالي](../README.md) و[النتائج النهائية](metrics_summary.json).
+
 # Executed validation
 
 Date: **2026-11-06**. Source project inspected before editing: initial commit `98947f10511fec6a0ee6c96129640a06db66da76`, containing only the two-line README. No existing implementation was replaced.

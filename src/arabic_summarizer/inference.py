@@ -30,7 +30,7 @@ class Summarizer:
         if self.model_path == "artifacts/best" and not Path(self.model_path).is_dir():
             raise ValueError("لم يُعثر على النموذج المدرّب. حدد مساره في ARABIC_SUMMARIZER_MODEL.")
         self.device = self.device or ("cuda" if torch.cuda.is_available() else "cpu")
-        dtype = torch.float16 if self.device.startswith("cuda") else torch.float32
+        dtype = torch.float32
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_path, use_fast=False)
         self.model = AutoModelForSeq2SeqLM.from_pretrained(
             self.model_path,

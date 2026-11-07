@@ -65,10 +65,30 @@ def test_real_gradio_blocks_initialization(monkeypatch):
     assert isinstance(demo, gr.Blocks)
     assert "تلخيص المقال" in str(demo.config)
     assert "direction: rtl" in demo.css
+    rendered = str(demo.config)
+    assert "الخبر كاملًا؟ خذ خُلاصته." in rendered
+    assert "تصميم وتطوير:" in rendered and "ندى علي" in rendered
+    assert "قد تحتوي الملخصات الآلية على أخطاء واقعية" in rendered
+    assert "أمثلة تجريبية" not in rendered
     # Execute the actual event handler without starting a server or model download.
     handler = next(fn.fn for fn in demo.fns.values() if fn.fn.__name__ == "submit")
     summary, counts, _ = handler("خبر " * 10, "", "متوسط")
     assert summary == "ملخص خبر عربي" and "10" in counts
     with pytest.raises(gr.Error):
         handler("نص", "https://example.com", "متوسط")
+    with pytest.raises(gr.Error):
+        handler(" ", " ", "متوسط")
+    monkeypatch.setattr("app.extract_article", lambda url: "خبر " * 10)
+    assert handler("", "https://example.com/news", "قصير")[0] == "ملخص خبر عربي"
+    demo.close()
+
+
+def test_default_app_build_does_not_load_weights(monkeypatch):
+    from app import build_app
+
+    def forbidden_load(self):
+        pytest.fail("Building the app must not load weights")
+
+    monkeypatch.setattr(Summarizer, "load", forbidden_load)
+    demo = build_app()
     demo.close()
