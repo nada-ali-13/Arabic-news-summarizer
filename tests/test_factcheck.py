@@ -213,7 +213,8 @@ def test_disabled_and_demo_isolated(monkeypatch, tmp_path):
 
 
 def test_safe_render_and_syndication():
-    a = Evidence(CLAIM, "https://example.org/a", "<script>bad</script>")
+    a = Evidence(CLAIM, "https://example.org/a", "<script>bad</script>",
+                 kind="factcheck", rating="تقييم منشور")
     b = Evidence(CLAIM, "https://example.net/b", "ب")
     assert len(deduplicate([a, b])) == 1
     rendered = render([Assessment(Claim(CLAIM, 0, len(CLAIM)), evidence=[a])], [])
@@ -262,7 +263,11 @@ def test_google_only_presentation_claim(monkeypatch):
     assert "عُثر على تقرير تدقيق مطابق" in html
     assert record["publisher"] in html and record["rating"] in html
     assert f'href="{record["url"]}"' in html
-    assert "لم يُجرَ تقييم NLI مستقل" in html
+    assert "هذا تقييم جهة التدقيق المنشور" in html
+    assert "NLI" not in html and "أدلة غير كافية" not in html
+    assert "موضع الجملة" not in html and "علاقة" not in html
+    assert 'class="kh-badge"' in html
+    assert "عرض تقرير التحقق الأصلي" in html
 
 
 def test_gdelt_remains_opt_in(monkeypatch):
@@ -271,3 +276,34 @@ def test_gdelt_remains_opt_in(monkeypatch):
     gdelt = SimpleNamespace(search=lambda *args: called.append(True) or [])
     Pipeline(google=Search([]), gdelt=gdelt).verify(CLAIM)
     assert called == [True]
+
+
+
+@pytest.mark.parametrize("evidence", [
+    [],
+    [Evidence("تقرير لا يتعلق بالادعاء", "https://example.org/a", "جهة",
+              kind="factcheck", rating="صحيح")],
+    [Evidence(CLAIM, "javascript:alert(1)", "جهة", kind="factcheck", rating="صحيح")],
+    [Evidence(CLAIM, "https://example.org/a", "جهة", kind="factcheck", rating="")],
+    [Evidence(CLAIM, "https://example.org/a", "جهة", rating="صحيح")],
+])
+def test_ui_neutral_without_suitable_published_rating(evidence):
+    result = Assessment(Claim(CLAIM, 42, 99), evidence=evidence)
+    html = render([result], ["Google: missing_FACT_CHECK_API_KEY"])
+    assert "لم تتوفر معلومات كافية للتحقق" in html
+    assert 'class="kh-badge kh-neutral"' in html
+    assert "عرض تقرير التحقق الأصلي" not in html
+    assert "missing_FACT_CHECK_API_KEY" not in html
+    assert "أدلة غير كافية" not in html
+
+
+def test_ui_unknown_rating_is_preserved_and_escaped():
+    rating = 'غير محسوم <img src=x onerror=alert(1)>'
+    review = Evidence(CLAIM, "https://example.org/review", "جهة", kind="factcheck",
+                      rating=rating, date="2026-11-09T12:00:00Z")
+    html = render([Assessment(Claim(CLAIM, 42, 99), evidence=[review])], [])
+    assert 'غير محسوم &lt;img src=x onerror=alert(1)&gt;' in html
+    assert "<img" not in html and "2026-11-09T" not in html
+    assert html.count('class="kh-link"') == 1
+    assert "نتيجة التحقق من الخبر" in html
+    assert "لم تتوفر معلومات كافية للتحقق" in render([], [])

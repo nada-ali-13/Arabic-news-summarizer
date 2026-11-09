@@ -1,61 +1,97 @@
-"""Escape every external field. Ratings stay separate from model assessments."""
+"""Concise Arabic cards for published reviews; escape all external content."""
 from html import escape
 
 from .demo import LABEL, load_records
-from .evidence import safe_url
+from .evidence import relevance, safe_url
+
+_STYLES = """<style>
+.kh-check {direction:rtl;text-align:right;color:#18244a;font-family:inherit;}
+.kh-check * {box-sizing:border-box;}
+.kh-check h3 {font-size:23px;font-weight:750;color:#18244a;margin:0 0 18px;}
+.kh-check .kh-card {background:#fff;border:1px solid #dddff0;border-radius:18px;
+ padding:24px;margin:0 0 16px;box-shadow:0 4px 18px rgba(26,35,88,.05);}
+.kh-check .kh-badge {display:inline-block;background:#eeecff;color:#37308c;
+ border:1px solid #c8c3f4;border-radius:14px;padding:10px 24px;font-size:30px;
+ font-weight:800;line-height:1.5;max-width:100%;overflow-wrap:anywhere;}
+.kh-check .kh-neutral {background:#f1f5f9;color:#334155;border-color:#cbd5e1;
+ font-size:21px;padding:12px 18px;}
+.kh-check .kh-claim {font-size:18px;line-height:1.9;margin:20px 0 10px;
+ color:#18244a;overflow-wrap:anywhere;}
+.kh-check .kh-message {color:#475569;font-size:15px;line-height:1.8;margin:8px 0;}
+.kh-check .kh-publisher {color:#334155;font-size:15px;margin:16px 0 12px;}
+.kh-check .kh-link {display:inline-block;background:#4338ca;color:#fff!important;
+ text-decoration:underline;border-radius:10px;padding:11px 18px;font-size:15px;
+ font-weight:650;line-height:1.7;}
+.kh-check .kh-link:hover {background:#3730a3;}
+.kh-check .kh-link:focus-visible,.kh-check summary:focus-visible {
+ outline:3px solid #4338ca;outline-offset:4px;}
+.kh-check .kh-disclaimer {color:#475569;font-size:13px;line-height:1.9;
+ margin:18px 0 0;padding-top:14px;border-top:1px solid #e2e8f0;}
+.kh-check .kh-demo {background:#f1f5f9;border-radius:12px;padding:14px 18px;
+ color:#334155;font-size:14px;line-height:1.9;margin-bottom:16px;}
+.kh-check details {color:#475569;font-size:13px;line-height:1.9;margin-top:14px;}
+.kh-check summary {cursor:pointer;color:#37308c;}
+@media(max-width:640px) {
+ .kh-check .kh-card {padding:18px;}
+ .kh-check h3 {font-size:21px;}
+ .kh-check .kh-badge {font-size:27px;}
+ .kh-check .kh-neutral {font-size:19px;}
+ .kh-check .kh-link {display:block;text-align:center;}
+}
+</style>"""
+
+
+def _card(claim, review=None, saved=False):
+    out = ['<article class="kh-card">']
+    if review:
+        # One consistent badge color: never infer true/false from a rating string.
+        out.append(f'<div class="kh-badge">{escape(review["rating"])}</div>')
+    else:
+        out.append('<div class="kh-badge kh-neutral">لم تتوفر معلومات كافية للتحقق</div>')
+    if claim:
+        out.append(f'<p class="kh-claim">{escape(claim)}</p>')
+    if review:
+        message = ("تقرير تدقيق محفوظ لهذا الادعاء." if saved
+                   else "عُثر على تقرير تدقيق مطابق لهذا الادعاء.")
+        out.append(f'<p class="kh-message">{message}</p>')
+        out.append(f'<p class="kh-publisher">جهة التدقيق: <strong>{escape(review["publisher"])}</strong></p>')
+        out.append(f'<a class="kh-link" href="{escape(review["url"], quote=True)}" '
+                   'target="_blank" rel="noopener noreferrer">عرض تقرير التحقق الأصلي</a>')
+        out.append('<p class="kh-disclaimer">هذا تقييم جهة التدقيق المنشور، '
+                   'وليس حكمًا مستقلًا من نموذج الذكاء الاصطناعي.</p>')
+    else:
+        out.append('<p class="kh-message">لم نعثر على تقرير تدقيق مناسب لهذا الادعاء. '
+                   'هذا لا يعني أنه صحيح أو خاطئ.</p>')
+    return "".join(out) + "</article>"
 
 
 def render(results, notes):
-    out = ['<section dir="rtl"><h3>التحقق من الخبر</h3>',
-           '<p>هذه علاقة الأدلة بكل ادعاء، وليست حكمًا على صحة المقال كاملًا. '
-           'التطابق آلي ومحافظ؛ راجع هوية الأشخاص والتاريخ والسياق. '
-           'تكرار التغطية لا يثبت استقلال المصادر.</p>']
-    out.extend(f"<p>{escape(note)}</p>" for note in notes)
+    out = [_STYLES, '<section class="kh-check" dir="rtl" aria-label="نتيجة التحقق من الخبر">',
+           '<h3 style="font-size:23px;font-weight:750;line-height:1.6;margin:0 0 18px">نتيجة التحقق من الخبر</h3>']
     for result in results:
-        out.append(f"<h4>الادعاء المستخرج: {escape(result.claim.text)}</h4>")
-        reviews = [e for e in result.evidence if e.kind == "factcheck"]
-        if reviews:
-            out.append("<p><strong>عُثر على تقرير تدقيق مطابق للادعاء</strong> — "
-                       "راجع تقييم الجهة الأصلية ومصدره أدناه.</p>")
-        else:
-            out.append("<p>لم يُعثر على تقرير تدقيق مطابق ضمن النتائج المسترجعة.</p>")
-        out.append(f"<p>التقييم الآلي المستقل للأدلة (NLI): <b>{result.verdict.value}</b></p>")
-        if reviews and not result.relations:
-            out.append("<p>لم يُجرَ تقييم NLI مستقل لهذا التقرير. «أدلة غير كافية» "
-                       "هنا تخص تقييمنا الآلي، ولا تلغي وجود تقرير التدقيق المنشور.</p>")
-        out.append(f"<p>موضع الجملة الأصلية: {result.claim.start}–{result.claim.end}</p>")
-        for evidence in result.evidence:
-            url = safe_url(evidence.url)
-            if not url:
-                continue
-            date_label = "تاريخ المراجعة" if evidence.kind == "factcheck" else "رصد GDELT (ليس تاريخ النشر المؤكد)"
-            out.append(f'<p><a href="{escape(url, quote=True)}" target="_blank" '
-                       f'rel="noopener noreferrer">{escape(evidence.publisher)}</a> — '
-                       f'{date_label}: {escape(evidence.date or "تاريخ غير متاح")}</p>')
-            if evidence.rating:
-                out.append(f"<p>التقييم المنشور لدى جهة التدقيق (ليس حكم نموذجنا): {escape(evidence.rating)}</p>")
-            if evidence.claim_date:
-                out.append(f"<p>تاريخ الادعاء الأصلي: {escape(evidence.claim_date)}</p>")
-            out.append(f"<blockquote>{escape(evidence.text or evidence.title)}</blockquote>")
-            if not evidence.text:
-                out.append("<p>عنوان تغطية فقط؛ لم يُستخدم دليلًا للحكم.</p>")
-        for url, relation in result.relations:
-            out.append(f"<p>علاقة NLI: {escape(relation)} — {escape(url)}</p>")
-        out.extend(f"<p>{escape(note)}</p>" for note in dict.fromkeys(result.notes))
+        # Defensive presentation check; upstream search already ranks relevant reviews.
+        review = next((e for e in result.evidence if e.kind == "factcheck"
+                       and e.rating.strip() and safe_url(e.url)
+                       and relevance(result.claim.text, e.text)), None)
+        data = ({"rating": review.rating, "publisher": review.publisher, "url": review.url}
+                if review else None)
+        out.append(_card(result.claim.text, data))
+    if not results:
+        out.append(_card(""))
     return "".join(out) + "</section>"
 
 
 def demo_html():
     records = load_records()
-    out = f"<section dir='rtl'><h3>{LABEL}</h3>"
-    out += ("<p>سجل عام استُرجع سابقًا في اختبار المستخدم؛ ليس نتيجة API مباشرة، "
-            "ولا تحققًا من النص المُدخل. لم يُجرَ تقييم NLI مستقل لهذا السجل.</p>")
+    out = [_STYLES, '<section class="kh-check" dir="rtl">',
+           '<h3 style="font-size:23px;font-weight:750;line-height:1.6;margin:0 0 18px">نتيجة التحقق من الخبر</h3>',
+           f'<div class="kh-demo"><strong>{LABEL}</strong><br>'
+           'سجل عام محفوظ سابقًا، وليس بحثًا مباشرًا ولا تحققًا من النص المُدخل.</div>']
     if not records:
-        out += "<p>لا توجد سجلات عامة موثّقة محفوظة حاليًا. لم يُنفذ بحث مباشر.</p>"
+        out.append(_card(""))
     for record in records:
-        out += (f'<p>الادعاء المحفوظ: {escape(record["text"])}<br>'
-                f'التقييم المنشور لدى جهة التدقيق: <strong>{escape(record["rating"])}</strong><br>'
-                f'<a href="{escape(record["url"], quote=True)}" target="_blank" rel="noopener noreferrer">'
-                f'{escape(record["publisher"])}</a> — استرجاع: '
-                f'{escape(record["retrieved_at"])}</p>')
-    return out + "</section>"
+        out.append(_card(record["text"], record, saved=True))
+        out.append('<details><summary>تفاصيل إضافية</summary>'
+                   f'<p>تاريخ استرجاع السجل في اختبار المستخدم: {escape(record["retrieved_at"])}</p>'
+                   '</details>')
+    return "".join(out) + "</section>"
