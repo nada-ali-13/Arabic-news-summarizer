@@ -80,6 +80,30 @@ def build_app(summarizer=None):
             print("Summarization error:", repr(exc))
             raise gr.Error("تعذّر التلخيص. تحققي من المقال أو الرابط وحاولي مجددًا.") from exc
 
+    # Import and initialize the optional subsystem only after the user requests it.
+    checker = None
+
+    def verify(text, url, demo_mode):
+        nonlocal checker
+        try:
+            from arabic_summarizer.factcheck.ui import demo_html, render
+
+            if demo_mode:
+                return demo_html()
+            if os.environ.get("KHULASA_FACTCHECK_ENABLED", "1") == "0":
+                return "<p>التحقق معطّل؛ يمكنك استخدام التلخيص.</p>"
+            text, url = (text or "").strip(), (url or "").strip()
+            if bool(text) == bool(url):
+                return "<p>أدخل نص المقال أو رابطه فقط.</p>"
+            article = extract_article(url) if url else text
+            if checker is None:
+                from arabic_summarizer.factcheck.pipeline import Pipeline
+
+                checker = Pipeline()
+            return render(*checker.verify(article))
+        except Exception:
+            return "<p>تعذر التحقق؛ يمكنك استخدام التلخيص بصورة مستقلة.</p>"
+
     with gr.Blocks(
         theme=gr.themes.Soft(primary_hue="indigo", neutral_hue="slate"),
         css=CUSTOM_CSS,
@@ -122,6 +146,16 @@ def build_app(summarizer=None):
                 )
                 stats_output = gr.HTML()
                 warning_output = gr.Markdown()
+        with gr.Accordion("التحقق من الخبر — اختياري", open=False):
+            gr.Markdown("استخراج الادعاءات والبحث عن أدلة خارجية؛ قد تستغرق العملية نحو دقيقة.")
+            demo_mode = gr.Checkbox(label="وضع العرض — نتائج محفوظة وليست تحققًا مباشرًا", value=False)
+            verify_btn = gr.Button("التحقق من الخبر", variant="secondary")
+            factcheck_output = gr.HTML()
+        verify_btn.click(
+            fn=verify, inputs=[article_input, url_input, demo_mode],
+            outputs=[factcheck_output], concurrency_limit=1, api_name=False,
+            show_progress="full",
+        )
         submit_btn.click(
             fn=submit,
             inputs=[article_input, url_input, length_input],

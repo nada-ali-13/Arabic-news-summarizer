@@ -31,3 +31,6 @@ select = ["E4", "E7", "E9", "F", "I"]
 "notebooks/Arabic_News_Training_1200.ipynb" = ["E402", "I001"]
 "notebooks/Arabic_News_Evaluation.ipynb" = ["E401", "E402", "E701", "E702", "F401", "I001"]
 "notebooks/Arabic_News_Gradio.ipynb" = ["I001"]
+
+[tool.setuptools.package-data]
+"arabic_summarizer.factcheck" = ["fixtures/*.json"]
