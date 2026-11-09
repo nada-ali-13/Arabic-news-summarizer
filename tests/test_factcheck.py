@@ -177,6 +177,7 @@ def test_no_evidence_and_factchecker_rating_do_not_become_verdict():
 
 
 def test_conflicting_evidence_and_headlines(monkeypatch):
+    monkeypatch.setenv("KHULASA_GDELT_ENABLED", "1")
     monkeypatch.setenv("KHULASA_EVIDENCE_HOSTS", "example.org,example.net")
     records = [Evidence("", "https://example.org/a", "أ"),
                Evidence("", "https://example.net/b", "ب")]
@@ -198,7 +199,13 @@ def test_conflicting_evidence_and_headlines(monkeypatch):
 def test_disabled_and_demo_isolated(monkeypatch, tmp_path):
     monkeypatch.setenv("KHULASA_FACTCHECK_ENABLED", "0")
     assert Pipeline().verify(CLAIM)[0] == []
-    assert load_records() == [] and LABEL in demo_html()
+    records = load_records()
+    assert len(records) == 1 and LABEL in demo_html()
+    assert records[0]["retrieved_at"] == "2026-11-09"
+    assert records[0]["publisher"] == "في ميزان فرانس برس"
+    assert records[0]["rating"] == "مضلّل"
+    assert records[0]["url"] == "https://factcheckarabic.afp.com/doc.afp.com.B3FY2T3"
+    assert "ولا تحققًا من النص المُدخل" in demo_html()
     bad = tmp_path / "bad.json"
     bad.write_text('[{"text":"invented"}]')
     with pytest.raises(ValueError):
@@ -228,3 +235,39 @@ def test_ui_independent_and_original_summarizer(monkeypatch):
     assert "معطّل" in handler(CLAIM, "", False)
     assert LABEL in handler("", "", True)
     demo.close()
+
+
+
+def test_google_only_presentation_claim(monkeypatch):
+    monkeypatch.delenv("KHULASA_GDELT_ENABLED", raising=False)
+    monkeypatch.delenv("KHULASA_NLI_ENABLED", raising=False)
+    monkeypatch.setenv("FACT_CHECK_API_KEY", "test-only-key")
+    record = load_records()[0]
+    payload = {"claims": [{"text": record["text"], "claimReview": [{
+        "publisher": {"name": record["publisher"]}, "textualRating": record["rating"],
+        "url": record["url"],
+    }]}]}
+    client, session = transport([Response(payload=payload)])
+    # The fake transport clock is isolated; use a real future deadline for API caching.
+    google = GoogleFactCheck(client)
+    def forbidden(*args):
+        pytest.fail("Google-only mode must not call GDELT or NLI")
+    pipeline = Pipeline(google=google, gdelt=SimpleNamespace(search=forbidden),
+                        nli=SimpleNamespace(assess=forbidden))
+    results, notes = pipeline.verify(record["text"])
+    assert len(session.calls) == 1 and len(results) == 1
+    assert results[0].verdict == Verdict.INSUFFICIENT_EVIDENCE
+    assert not results[0].relations
+    html = render(results, notes)
+    assert "عُثر على تقرير تدقيق مطابق" in html
+    assert record["publisher"] in html and record["rating"] in html
+    assert f'href="{record["url"]}"' in html
+    assert "لم يُجرَ تقييم NLI مستقل" in html
+
+
+def test_gdelt_remains_opt_in(monkeypatch):
+    monkeypatch.setenv("KHULASA_GDELT_ENABLED", "1")
+    called = []
+    gdelt = SimpleNamespace(search=lambda *args: called.append(True) or [])
+    Pipeline(google=Search([]), gdelt=gdelt).verify(CLAIM)
+    assert called == [True]

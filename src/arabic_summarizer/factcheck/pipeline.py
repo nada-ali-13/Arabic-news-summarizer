@@ -38,10 +38,13 @@ class Pipeline:
         results = []
         trusted = {h.strip().lower() for h in os.environ.get(
             "KHULASA_EVIDENCE_HOSTS", "").split(",") if h.strip()}
+        sources = [("Google", self.google)]
+        if os.environ.get("KHULASA_GDELT_ENABLED", "0") == "1":
+            sources.append(("GDELT", self.gdelt))
         for claim in extract_claims(article):
             result = Assessment(claim)
             records = []
-            for source, client in (("Google", self.google), ("GDELT", self.gdelt)):
+            for source, client in sources:
                 if time.monotonic() >= deadline - 1:
                     result.notes.append("انتهت ميزانية البحث.")
                     break

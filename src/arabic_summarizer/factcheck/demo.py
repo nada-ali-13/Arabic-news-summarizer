@@ -1,4 +1,4 @@
-"""Isolated offline records. Empty until authenticated public records are curated."""
+"""Isolated offline public records with user-reported live retrieval provenance."""
 import json
 from pathlib import Path
 

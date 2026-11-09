@@ -1,183 +1,89 @@
-# خُلاصة: التحقق المستند إلى الأدلة
+# خُلاصة — تشغيل عرض Google فقط
 
-## Status and scope
+## أسرع مسار للعرض على Colab
 
-This branch adds an optional, conservative evidence-assessment feature to `app.py`.
-It is **not a validated fake-news classifier**. No article-level true/fake verdict,
-accuracy measurement, or factual confidence percentage is produced. The original
-summarizer, weights, training/evaluation notebooks and private Drive files are unchanged.
+استخدم جلسة Colab الحالية ومجلد أوزان التلخيص نفسه (`MODEL_DIR`) دون تدريب أو تغيير ملفات النموذج. لا تشغّل خلية Gradio القديمة المضمّنة في الدفتر؛ شغّل واجهة `app.py` من الفرع المحدّث. أوقف واجهة العرض القديمة أولًا. إذا سبق استيراد `app` أو `arabic_summarizer` من نسخة أقدم، أعد تشغيل الجلسة بعد التثبيت ثم أعد ربط Drive وتعريف `MODEL_DIR` الأصلي قبل خلية التشغيل.
 
-Live Google access was previously verified by the owner, not in this implementation
-session. No key was supplied here. GDELT and Hugging Face HTTPS probes on 2026-11-09
-were denied by the environment proxy (CONNECT 403). Consequently GDELT's current
-endpoint format, the proposed model's availability/license and real NLI inference
-are **not independently validated here**. Keep this PR unmerged until these live
-checks and human review are complete. No demo records were fabricated.
-
-## Architecture
-
-`src/arabic_summarizer/factcheck/` is optional and imported on first verification:
-
-- `claims.py`: deterministic extractive Arabic sentence rules, original character
-  offsets, maximum three claims. Numbers and reporting verbs are hints. Opinions
-  and explicit predictions are excluded heuristically. No learned extraction or
-  entity linking is claimed. Compound sentences are not decomposed; source ambiguity
-  and relative dates remain limitations.
-- `google_factcheck.py`: individual-claim search at the official
-  `https://factchecktools.googleapis.com/v1alpha1/claims:search` endpoint;
-  `query`, `languageCode=ar`, `pageSize=5`; parses all returned reviews (bounded),
-  claim/review dates, original ratings, publisher, title and citation.
-- `gdelt.py`: public `https://api.gdeltproject.org/api/v2/doc/doc`, `mode=artlist`,
-  `format=json`, `maxrecords=5`, `timespan=3months`, `sort=datedesc`,
-  `sourcelang:arabic`. Only explicitly Arabic results are accepted. `seendate`
-  is GDELT's observation timestamp, **not guaranteed original publication time**.
-  Missing dates remain unknown. Empty/non-JSON/English-only results yield no evidence.
-  These documented API conventions still require a live smoke test in this environment.
-- `http.py`: fixed-endpoint transport, no redirects, TLS verification, bounded JSON,
-  6-second request timeout, at most three attempts, bounded backoff and Retry-After,
-  conservative per-process throttles and 128-entry/15-minute caches. No credentials
-  in cache keys, messages, or logs. Auth failures are not retried. Cache is in RAM.
-- `evidence.py`: conservative normalized lexical coverage, exact numeric/date-token
-  matching and negation checks. Every significant claim token must be present;
-  this rejects many paraphrases and contradictions intentionally. No semantic
-  ranker, Arabic NER or robust event/coreference resolver is implemented. Same-topic
-  coverage is insufficient. Google records are ranked only after this filter.
-  URL/near-identical text deduplication reduces syndication; it cannot establish
-  independence or identify every copied report. Search rankings are not proof.
-- `pipeline.py`: 60-second search/extraction scheduling budget, one active check,
-  fail-closed fallbacks and explicit conflict handling. Fact-check ratings remain
-  citations only, never premises for NLI. Headlines are discovery metadata only.
-  Full text uses existing DNS-pinned SSRF-safe article extraction (redirect checks,
-  size/content-type limits, timeouts). Only operator-approved exact HTTPS hosts
-  can supply NLI premises. Select public sources whose access is permitted; no
-  paywall, robots or authentication bypass. Primary-source selection is manual.
-- `nli.py`: optional lazy CPU-only local inference and config-derived label mapping;
-  model reused, no GPU allocation and no interactive downloads. Unknown label
-  mappings fail closed. Failed loading is latched until app restart.
-- `ui.py`: escaped RTL HTML, citations, source ratings, evidence relationships and
-  limitations; separate button/output, no change to summarization callbacks.
-- `demo.py` and `fixtures/demo.json`: isolated offline presentation records.
-
-Google discovers previously published fact checks; GDELT discovers news coverage.
-Neither provides an oracle of truth. Google claim text is the **claim being reviewed**,
-not the review's explanatory evidence; passing it to NLI would spuriously entail itself.
-
-## Colab setup
-
-Use a fresh runtime and an authorized copy of the original summarizer weights.
-Do not retrain or overwrite weights. The existing Gradio notebook embeds its old
-interface and pins old helpers; it is deliberately unchanged. To use this feature,
-check out this branch and run `app.py` or import `build_app` from this checkout:
+في خلية أولى، عند وجود المستودع في `/content/Arabic-news-summarizer`:
 
 ```python
-# Colab shell cell, after cloning the repository:
 %cd /content/Arabic-news-summarizer
 !git fetch origin feature/fact-checking
 !git checkout feature/fact-checking
-!pip install -e .
+!git pull --ff-only origin feature/fact-checking
+!pip install -q -e .
 ```
 
-Configure the key in **Colab Secrets**, grant this notebook access, then:
+إذا لم يكن المستودع موجودًا أصلًا، نفّذ هذا بدل الخلية السابقة:
+
+```python
+%cd /content
+!git clone --branch feature/fact-checking --single-branch https://github.com/nada-ali-13/Arabic-news-summarizer.git
+%cd /content/Arabic-news-summarizer
+!pip install -q -e .
+```
+
+احتفظ بنسخة PyTorch/CUDA الموجودة على Colab. في **Colab Secrets** احفظ المفتاح باسم `FACT_CHECK_API_KEY` وامنح الدفتر حق قراءته. لا تكتبه داخل خلية ولا تطبعه. ثم شغّل (بعد ربط Drive وتعريف `MODEL_DIR` بالقيمة الأصلية التي تستخدمها للتلخيص):
 
 ```python
 import os
 from google.colab import userdata
+os.environ['USE_TF'] = '0'
+os.environ['USE_FLAX'] = '0'
 os.environ['FACT_CHECK_API_KEY'] = userdata.get('FACT_CHECK_API_KEY')
-os.environ['ARABIC_SUMMARIZER_MODEL'] = '/content/drive/MyDrive/YOUR_AUTHORIZED_MODEL/model'
-# Set only reviewed primary/news hosts; exact names, no wildcards:
-os.environ['KHULASA_EVIDENCE_HOSTS'] = ''
-```
+os.environ['ARABIC_SUMMARIZER_MODEL'] = str(MODEL_DIR)  # المسار الأصلي بلا تغيير
+os.environ['KHULASA_FACTCHECK_ENABLED'] = '1'
+os.environ['KHULASA_GDELT_ENABLED'] = '0'
+os.environ['KHULASA_NLI_ENABLED'] = '0'
 
-Never paste the key in chat, notebooks, URLs, commits or screenshots. The code reads
-only the environment; a missing key shows a safe diagnostic and GDELT may still run.
-Do not alter API restrictions. Key stays restricted to Fact Check Tools API.
-
-### NLI candidate and activation gate
-
-Candidate identifier: `MoritzLaurer/multilingual-MiniLMv2-L6-mnli-xnli`.
-This family is a compact multilingual MiniLM/XNLI classifier with Arabic among
-XNLI languages. License is **unverified here**; confirm it directly on the model card before use.
-Do not treat the identifier, license, artifact format or parameter count as verified
-by this session. Review the exact model card/config/files first:
-https://huggingface.co/MoritzLaurer/multilingual-MiniLMv2-L6-mnli-xnli
-
-Provision model/tokenizer to the Hugging Face cache separately, only after checking
-license, Arabic coverage, safetensors availability and `id2label`. If the repository
-lacks safetensors, the current loader intentionally refuses pickle weights. Resolve
-that with reviewed safe conversion or select/review another model before activation;
-do not silently allow unsafe remote code or change labels. No `trust_remote_code`.
-
-```python
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
-from arabic_summarizer.factcheck.nli import MODEL_ID, label_mapping
-AutoTokenizer.from_pretrained(MODEL_ID)
-model = AutoModelForSequenceClassification.from_pretrained(MODEL_ID, use_safetensors=True)
-print(label_mapping(model.config))  # must contain entailment, neutral, contradiction
-# Run real Arabic entailment/contradiction/neutral examples and human review here.
-del model
-os.environ['KHULASA_NLI_ENABLED'] = '1'
-```
-
-Start with CPU NLI (default), batch 1, sequence limit 384; it does not compete for
-AraT5v2 GPU memory. A T4 remains available for the summarizer. Plan conservatively
-for 1–2 GB extra host RAM for weights/framework/activations; this is a planning
-allowance, **not measured model memory or latency**. Profile in your actual Colab
-runtime. The search budget is not a hard cancellation deadline for local model
-loading/inference, DNS or a blocking socket read; initial provisioning is separate.
-CPU inference can extend latency. Leave NLI disabled until validated.
-
-```python
 from app import build_app
-build_app().launch(share=True)  # temporary public link only if desired
+build_app().launch(share=True)
 ```
 
-Set approved evidence hosts before running to enable full-text assessment. With
-no hosts or NLI disabled, the UI provides discovery/citations and insufficient
-evidence, never invented model output. NLI score threshold .9 is a conservative
-uncalibrated abstention rule, not an accuracy estimate. An entailment relation is
-not proof of real-world truth. Dates, entity identity and claims with no explicit
-year require human inspection; temporal relevance is not fully solved.
+`share=True` ينشئ رابطًا عامًا مؤقتًا للعرض، ينتهي بإيقاف الجلسة. الأوزان تُحمّل عند أول تلخيص؛ Google لا يحتاج إلى تحميل نموذج. لا تستبدل الأوزان المدربة بالنموذج الأساسي. إذا كنت تملك بالفعل كائنًا من `arabic_summarizer.inference.Summarizer`، يمكن تمريره إلى `build_app(summarizer=...)` لتجنب تحميله مرة أخرى.
 
-## Quotas and service errors
+## ما الذي تعرضه للمحاضر؟
 
-The owner's console showed **300 AllRequests/minute**, approximately 0.33% observed
-usage. This is neither an unlimited daily quota nor a pricing/free-use guarantee.
-Google throttle is one attempt per 2 seconds (at most 30/minute per process);
-GDELT uses 6 seconds. Concurrent/too-fast calls abstain rather than wait in a queue.
-Up to 3 claims × 2 source queries, each with at most 3 attempts, are scheduled
-within the shared budget. No pagination. Article retrieval is additionally bounded.
-Multiple app processes share no cache/throttle; use a gateway or shared limiter
-before multi-worker deployment. Errors report safe codes (`quota`, `local_rate_limit`,
-`authentication_or_access`, `network_or_payload_error`, `non_json_response`,
-`time_budget`), not provider bodies or keyed URLs. Adjust limits if quotas change.
+1. الصق في **نص المقال** هذا الادعاء بالضبط، واترك الرابط فارغًا:
+   `لقاحات كوفيد-19 تسببت بتفشي فيروس هانتا`
+2. افتح **التحقق من الخبر — اختياري** واترك وضع العرض غير محدد، ثم اضغط **التحقق من الخبر**.
+3. عند إرجاع Google التقرير المطابق، ستظهر رسالة **عُثر على تقرير تدقيق مطابق للادعاء**، والجهة **في ميزان فرانس برس**، وتقييمها المنشور **مضلّل**، ورابط المصدر.
+4. **أدلة غير كافية** تخص التقييم الآلي المستقل NLI الذي لم يُجرَ هنا؛ ليست إلغاءً لتقرير AFP ولا حكمًا بأن تقييمها خاطئ.
+5. إذا تعطلت الشبكة أو المفتاح، حدد **وضع العرض — نتائج محفوظة وليست تحققًا مباشرًا** وأعد الضغط. سيظهر سجل AFP المحفوظ نفسه دون أي اتصال أو تنزيل نموذج، بصرف النظر عن الإدخال. هذا ليس تحققًا من نص عشوائي.
+6. استخدم مقالًا مناسبًا لزر **تلخيص المقال**؛ جميع خيارات الطول والنسخ والإحصاءات والعلامة التجارية واسم المطورة كما كانت.
 
-## Demo
+السجل المحفوظ: https://factcheckarabic.afp.com/doc.afp.com.B3FY2T3
+تاريخ الاسترجاع **2026-11-09** مأخوذ من اختبار Google الحي الذي أبلغ عنه المستخدم، وليس وقت استرجاع اخترعته بيئة التطوير. حُفظ النص والجهة والتقييم والرابط كما زوّدها المستخدم. تاريخ المراجعة الأصلي غير مزوّد ولم يُختلق.
 
-Toggle **وضع العرض — نتائج محفوظة وليست تحققًا مباشرًا**. It does no API calls,
-article fetching or NLI. The fixture is currently an empty list; the UI says so.
-To populate it, retrieve real public records in a permitted environment, manually
-validate the original publication and rating, then save objects with nonempty
-`text`, `publisher`, `rating`, `url`, `retrieved_at` (ISO UTC retrieval date), plus
-review/claim dates where available. Preserve original text/rating; remove keys,
-request URLs and personal data not necessary to the public claim. Review provenance
-before committing. Structural validation cannot establish authenticity by itself.
-Do not add synthetic claims or results. Saved examples never verify the entered article.
+## الإعدادات الافتراضية
 
-## Testing and rollback
+- `KHULASA_FACTCHECK_ENABLED=1`: التحقق مفعّل، مع Google وحده افتراضيًا.
+- `FACT_CHECK_API_KEY`: من البيئة أو Colab Secrets. عند غيابه يظهر تشخيص آمن ولا يتعطل التلخيص. لا يلزم المفتاح للعرض المحفوظ؛ يمكن تجاوز سطر قراءة السر إذا أردت العرض المحفوظ فقط.
+- `KHULASA_GDELT_ENABLED=0`: معطّل افتراضيًا؛ لا توجد طلبات ولا انتظار لخدمته. إعادة تفعيله لاحقًا فقط عبر القيمة `1`. اختبار المستخدم الحي أعاد 429 وطلب فاصل خمس ثوانٍ؛ العميل الموجود يستخدم ست ثوانٍ، ولم نضف عملًا لتطوير GDELT.
+- `KHULASA_NLI_ENABLED=0`: اختياري ولا يلزم Google. لا توجد تنزيلات نماذج أثناء التحقق.
+- `KHULASA_EVIDENCE_HOSTS`: لا يلزم لمسار Google؛ يتعلق فقط بمصادر النص الكامل عند تفعيل GDELT/NLI لاحقًا.
+- للتعطيل الكامل: `KHULASA_FACTCHECK_ENABLED=0`؛ يبقى التلخيص مستقلًا.
+
+## NLI — نتيجة smoke test أبلغ عنها المستخدم
+
+النموذج `MoritzLaurer/multilingual-MiniLMv2-L6-mnli-xnli` أعاد HTTP 200 من Hugging Face API، وترخيص **MIT** وملفات safetensors متاحة وفق اختبار المستخدم في Colab. حُمّل بنجاح على CPU، وخرائطه:
+`{0: 'entailment', 1: 'neutral', 2: 'contradiction'}`.
+
+نتائج ثلاث أمثلة عربية: entailment **0.9949**، contradiction **0.9892**، neutral **0.8854**. هذه اختبارات دخان صغيرة أبلغ عنها المستخدم وليست مقياس دقة عامًا أو إعادة اختبار هنا. لا حاجة لتفعيل NLI في العرض. التحميل الحالي محلي فقط مع التحقق من أسماء التسميات؛ لا بد من تجهيز النموذج مسبقًا إذا فُعّل لاحقًا. يعمل على CPU، batch 1 وطول 384، ويُعاد استخدامه دون منافسة AraT5v2 على GPU. احتياط RAM تقريبي 1–2 GB وليس قياسًا فعليًا؛ لم تُقَس الذاكرة أو السرعة هنا.
+
+## البنية والحدود
+
+الوحدات في `src/arabic_summarizer/factcheck/`: استخراج جمل أصلية بقواعد محافظة (حتى ثلاثة ادعاءات)، عميل Google، عميل GDELT الاختياري، نقل JSON محدود، ترشيح وإزالة تكرار، NLI اختياري، تنسيق النتائج، وعرض HTML عربي آمن. Google يبحث في تقارير تدقيق منشورة؛ GDELT يكتشف تغطية إخبارية. نص الادعاء المراجَع ليس دليلًا على صحته؛ لا نمرره إلى NLI ليؤيد نفسه ولا نحوّل تقييم الجهة إلى حكم آلي مستقل.
+
+Google يستخدم `claims:search` مع `languageCode=ar` وخمسة سجلات كحد أقصى، لكل ادعاء. التطابق معجمي محافظ، وليس بحثًا دلاليًا أو حلًا كاملًا لهوية الكيانات والتواريخ. قد يفوّت صياغات بديلة. لا يوجد حكم صحيح/كاذب على المقال كله. يلزم فحص بشري للسياق والأسماء والتواريخ.
+
+العميل يستخدم cache في الذاكرة (15 دقيقة، 128 طلبًا مختلفًا)، مهلة طلب 6 ثوانٍ وثلاث محاولات كحد أقصى مع backoff ومعالجة 429، وحد Google محاولة كل ثانيتين لكل عملية. الضغط السريع المتكرر قد يعرض `local_rate_limit`؛ انتظر قليلًا. ميزانية البحث 60 ثانية وليست إلغاءً صارمًا لاستدلال محلي. رقم 300 طلب/دقيقة الذي عرضه حساب المستخدم ليس ضمانًا للاستخدام اليومي غير المحدود أو المجاني. لا تُعرض المفاتيح أو رسائل الشبكة الخام. المصادر تُعرض بعد escaping، واستخراج المقالات يظل باستخدام حماية SSRF الأصلية.
+
+## الاختبارات والرجوع
 
 ```bash
-python -m pip install -e . -r requirements-dev.txt
 ruff check .
-pytest -q
+pytest tests/test_factcheck.py tests/test_inference_app.py tests/test_articles.py -q
 ```
 
-`tests/test_factcheck.py` uses mocked responses/model relationships, including auth,
-quota, retries, malformed/empty results, relevance, conflicts, HTML escaping, demo
-integrity, opt-out and real Gradio construction. Existing summarizer tests exercise
-mock generation and an offline tiny random T5; neither validates private AraT5v2
-weights. See `reports/FACTCHECK_VALIDATION.md` for actual commands and results.
-
-Disable with `KHULASA_FACTCHECK_ENABLED=0`. Summarization does not initialize the
-fact-check subsystem. Restore the original application by checking out `main` in
-a clean checkout after saving any uncommitted work; no weights need restoration.
-Never merge this feature automatically.
+راجع `FACTCHECK_VALIDATION.md` للنتائج الفعلية والفصل بين المحاكاة ونتائج Colab التي أبلغ عنها المستخدم. لا تحتاج إلى تدريب أو تعديل أوزان. للرجوع إلى التطبيق الأصلي استخدم checkout نظيفًا من `main` بعد حفظ أي تغييرات محلية؛ هذا الفرع وPR #6 لا يُدمجان تلقائيًا.
