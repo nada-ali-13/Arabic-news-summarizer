@@ -307,3 +307,60 @@ def test_ui_unknown_rating_is_preserved_and_escaped():
     assert html.count('class="kh-link"') == 1
     assert "نتيجة التحقق من الخبر" in html
     assert "لم تتوفر معلومات كافية للتحقق" in render([], [])
+
+
+
+def test_multi_claim_no_matches_has_one_summary_and_collapsed_previews():
+    from xml.etree import ElementTree as ET
+
+    long_claim = CLAIM * 6 + '<script>bad</script>'
+    results = [Assessment(Claim(long_claim + str(i), i, i + 1)) for i in range(3)]
+    html = render(results, [])
+    root = ET.fromstring('<root>' + html + '</root>')
+    assert html.count('لم تتوفر تقارير تدقيق كافية') == 1
+    assert 'لم تتوفر معلومات كافية للتحقق' not in html
+    assert 'فُحصت 3 ادعاءات من المقال' in html
+    assert len(root.findall(".//*[@class='kh-card kh-article-summary']")) == 1
+    details = root.find(".//*[@class='kh-claim-list']")
+    assert 'open' not in details.attrib
+    assert details.find('summary').text == 'عرض تفاصيل الادعاءات'
+    assert len(details.findall(".//*[@class='kh-row']")) == 3
+    assert len(details.findall(".//*[@class='kh-full']")) == 3
+    assert all(len(p.text) <= 140 for p in details.findall(".//*[@class='kh-preview']"))
+    assert details.find(".//*[@class='kh-full']/p").text == long_claim + '0'
+    assert not root.findall('.//script')
+
+
+def test_multi_claim_matching_report_stays_visible_above_details():
+    from xml.etree import ElementTree as ET
+
+    record = load_records()[0]
+    matched = Assessment(Claim(record['text'], 0, 1), evidence=[Evidence(
+        record['text'], record['url'], record['publisher'],
+        kind='factcheck', rating=record['rating'])])
+    results = [Assessment(Claim(CLAIM, 1, 2)), matched, Assessment(Claim(CLAIM, 2, 3))]
+    root = ET.fromstring('<root>' + render(results, []) + '</root>')
+    summary = root.find(".//*[@class='kh-card kh-article-summary']")
+    assert [s.text for s in summary.findall(".//*[@class='kh-counts']/span/strong")] == ['3', '1']
+    # The visible match is a direct section child, outside collapsed details.
+    visible = root.find("./section/article[@class='kh-row kh-match']")
+    assert visible.find(".//*[@class='kh-badge']").text == record['rating']
+    assert visible.find('a').attrib['href'] == record['url']
+    assert record['publisher'] in ''.join(visible.itertext())
+    assert 'وليست حكمًا على المقال كاملًا' in ''.join(summary.itertext())
+    details = root.find(".//*[@class='kh-claim-list']")
+    assert details.find(".//*[@class='kh-badge']").text == record['rating']
+    assert len(details.findall(".//*[@class='kh-unmatched']")) == 2
+
+
+def test_single_afp_keeps_large_rating_card():
+    from xml.etree import ElementTree as ET
+
+    record = load_records()[0]
+    result = Assessment(Claim(record['text'], 0, 1), evidence=[Evidence(
+        record['text'], record['url'], record['publisher'],
+        kind='factcheck', rating=record['rating'])])
+    root = ET.fromstring('<root>' + render([result], []) + '</root>')
+    assert root.find(".//*[@class='kh-card']/*[@class='kh-badge']").text == 'مضلّل'
+    assert root.find(".//*[@class='kh-claim-list']") is None
+    assert root.find(".//*[@class='kh-card']/a").attrib['href'] == record['url']
