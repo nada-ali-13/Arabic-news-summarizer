@@ -41,7 +41,7 @@ def check_submission(root=ROOT):
     readme = (root / "README.md").read_text()
     for ref in re.findall(r"(?:github\.com|colab\.research\.google\.com/github)/"
                           r"nada-ali-13/Arabic-news-summarizer/blob/([^\s)]+)", readme):
-        prefix = "feature/fact-checking/"
+        prefix = "main/"
         if not ref.startswith(prefix) or not (root / ref[len(prefix):]).is_file():
             errors.append("invalid_project_notebook_url")
     # Only report paths, never matching contents.
