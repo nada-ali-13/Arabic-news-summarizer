@@ -10,5 +10,7 @@ safetensors==0.6.2
 numpy>=1.26,<3
 rouge-score==0.1.2
 trafilatura==2.0.0
+# Compatible with the pinned urllib3 version.
+htmldate==1.9.4
 urllib3==2.5.0
 gradio==5.49.1

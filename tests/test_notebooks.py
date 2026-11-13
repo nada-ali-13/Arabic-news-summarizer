@@ -7,6 +7,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 FINAL_NAMES = {
+    "Khulasa_Final_Demo.ipynb",
     "Arabic_News_Training_1200.ipynb",
     "Arabic_News_Evaluation.ipynb",
     "Arabic_News_Gradio.ipynb",
