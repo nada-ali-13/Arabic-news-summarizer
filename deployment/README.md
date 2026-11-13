@@ -1,6 +1,5 @@
 ---
-title: Arabic News Summarizer
-emoji: 📰
+title: Khulasa
 colorFrom: blue
 colorTo: indigo
 sdk: gradio
@@ -10,12 +9,12 @@ app_file: app.py
 pinned: false
 ---
 
-Optional future hosting template for **خُلاصة** by **ندى علي**. Nothing is deployed.
-The trained weights are in a private Google Drive folder and are not bundled or
-publicly downloadable through GitHub. Hosting requires separately permitted access
-to the complete model export; a temporary Colab `gradio.live` share is not permanent hosting.
+# متطلبات الاستضافة الاختيارية
 
-Copy this front matter to the Space's root README only when preparing an authorized deployment.
-Set `PYTHONPATH=src` and `ARABIC_SUMMARIZER_MODEL` to a complete exported model/tokenizer directory.
-Provide sufficient measured RAM/VRAM. A trained model is not bundled with this source.
-Resolve upstream weight licensing before public redistribution; XL-Sum is CC BY-NC-SA 4.0.
+يمثل هذا الملف قالب إعداد لاستضافة Gradio مستقبلًا، وليس إثباتًا لنشر خدمة قائمة. يعتمد التشغيل الحالي على جلسة محلية أو Google Colab؛ رابط المشاركة المؤقت ليس استضافة دائمة.
+
+يتطلب النشر وصولًا مصرحًا إلى التصدير الكامل للنموذج المضبوط وTokenizer، وضبط `PYTHONPATH=src` و`ARABIC_SUMMARIZER_MODEL`، وإدارة `FACT_CHECK_API_KEY` في مخزن أسرار الجهة المستضيفة. لا تتضمن حزمة GitHub أوزانًا إنتاجية قابلة للتنزيل العام.
+
+تستلزم الاستضافة قياس RAM وVRAM والكمون والحمل الفعلي، ومحدد حصة مشتركًا عند تشغيل عدة عمليات، ومراجعة حقوق إعادة توزيع الأوزان. ترخيص البيانات CC BY-NC-SA 4.0 منفصل عن حقوق النموذج. لا تُنسخ بيانات حساب Drive الخاص إلى هذا القالب. يُرجع إلى [وثائق المشروع](../README.md) لمسار التشغيل المعتمد.
+
+**تصميم وتطوير: ندى علي.**

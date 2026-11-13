@@ -19,3 +19,8 @@ work/
 *.pth
 *.arrow
 *.tar.bz2
+# Local credentials and private runtime configuration
+.secrets/
+credentials.json
+service-account*.json
+*.pem

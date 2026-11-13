@@ -11,8 +11,8 @@
     "test_reused_for_prior_64_result": true
   },
   "models": {
-    "1200": "/content/drive/MyDrive/ArabicNewsSummarizer/improved-fp32-1200-20261106-173127-a391a9/model",
-    "200": "/content/drive/MyDrive/ArabicNewsSummarizer/single-fp32-20261106-165157-322fa1/model"
+    "1200": "AUTHORIZED_MODEL_1200_DIR",
+    "200": "AUTHORIZED_MODEL_200_DIR"
   },
   "rouge": {
     "1200_test": {
