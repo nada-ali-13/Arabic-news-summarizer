@@ -7,7 +7,7 @@
 
 خُلاصة نظام لمعالجة الأخبار العربية يجمع التلخيص التوليدي واسترجاع تقارير التحقق المنشورة في واجهة Gradio عربية تدعم اتجاه الكتابة من اليمين إلى اليسار. تعتمد وحدة التلخيص على `UBC-NLP/AraT5v2-base-1024` بعد ضبطه إشرافيًا على Arabic XL-Sum. وتستخرج وحدة التدقيق حتى ثلاثة ادعاءات بقواعد لغوية محافظة، ثم تسترجع تقارير مطابقة عبر Google Fact Check Tools API، مع الحفاظ على تقييم الجهة الناشرة والاستشهاد بالمصدر. لا يُستخدم نموذج التلخيص لتصنيف حقيقة الأخبار، ولا ينتج النظام حكمًا كليًا على صحة المقال.
 
-نسخة التسليم موثقة في [الفرع `feature/fact-checking`](https://github.com/nada-ali-13/Arabic-news-summarizer/tree/feature/fact-checking)، ضمن [PR #6](https://github.com/nada-ali-13/Arabic-news-summarizer/pull/6) الجاهز للمراجعة وغير المدمج. يمثل رابط الفرع مدخل التقييم الحالي؛ قد يعرض رابط المستودع الافتراضي نسخة `main` السابقة. يبدأ التشغيل من [دفتر Colab النهائي](notebooks/Khulasa_Final_Demo.ipynb).
+يضم المستودع الشيفرة المصدرية للنظام، ودفاتر التدريب والتقييم والتشغيل، ونتائج التجارب، والتوثيق الفني. يُوصى باستخدام [دفتر Colab النهائي](notebooks/Khulasa_Final_Demo.ipynb) لتشغيل واجهة التطبيق، مع مراعاة متطلبات الوصول إلى الأوزان المدرّبة وإعداد خدمة تدقيق الأخبار.
 
 ## 1. المشكلة والأهداف
 
@@ -140,7 +140,7 @@ AraT5v2 نموذج **Encoder–Decoder** من عائلة T5، مخصص لمعا�
 يلزم Python 3.10–3.13 وPyTorch ضمن `>=2.6,<3`. تتضمن المتطلبات Transformers 4.57.1 وGradio 5.49.1؛ تثبت النسخ الأخرى وفق [requirements.txt](requirements.txt). في Colab يُحافظ على تثبيت PyTorch/CUDA الموجود. للتشغيل المحلي على CPU:
 
 ```bash
-git clone --branch feature/fact-checking --single-branch https://github.com/nada-ali-13/Arabic-news-summarizer.git
+git clone https://github.com/nada-ali-13/Arabic-news-summarizer.git
 cd Arabic-news-summarizer
 python -m venv .venv
 source .venv/bin/activate
@@ -156,7 +156,7 @@ python app.py
 
 ### التشغيل على Google Colab
 
-[فتح دفتر التشغيل النهائي في Colab](https://colab.research.google.com/github/nada-ali-13/Arabic-news-summarizer/blob/feature/fact-checking/notebooks/Khulasa_Final_Demo.ipynb)
+[فتح دفتر التشغيل النهائي في Colab](https://colab.research.google.com/github/nada-ali-13/Arabic-news-summarizer/blob/main/notebooks/Khulasa_Final_Demo.ipynb)
 
 يُنفذ الدفتر بالتسلسل في جلسة نظيفة، ويفضّل T4 GPU. يثبت مصدر الفرع مع تسجيل بصمته، ويثبت الاعتمادات دون استبدال PyTorch، ويربط Drive، ويقرأ السر، ثم يستقبل مسار النموذج المصرح به بإدخال مخفي. يتحقق من ملفات safetensors وTokenizer ويحمّل النموذج قبل الواجهة. اختبار توليد اصطناعي اختياري غير مفعّل افتراضيًا. تُغلق الواجهة السابقة عند إعادة إطلاقها؛ لا تُحذف ملفات محلية أو أوزان.
 
